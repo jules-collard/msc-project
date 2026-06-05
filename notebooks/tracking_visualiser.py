@@ -26,23 +26,11 @@ def _():
 
 @app.cell
 def _():
-    with open("data/one_game/NHL_20252026_playoffs_20260521_MTLvsCAR_gameroster.json") as roster_f:
+    with open("data/one_game/NHL_20252026_postseason_20260521_MTLvsCAR_entity_registration.json") as roster_f:
         rosters_json = json.load(roster_f)
 
-    team_ids = rosters_json.keys()
-    rosters_list = []
-
-    for id in team_ids:
-        rosters_list.append(pl.from_dicts(rosters_json.get(id)))
-
-    rosters = pl.concat(rosters_list)
+    rosters = pl.from_dicts(rosters_json[0].get("Entities"))
     return (rosters,)
-
-
-@app.cell
-def _(tracking):
-    tracking
-    return
 
 
 @app.cell
@@ -52,7 +40,7 @@ def _(rosters, selector, tracking):
     ts_tracking = ( 
         timestamps
         .join(player_ids, how='cross').sort(c('ts'))
-        .join(rosters, left_on='entity_official_id', right_on='id', how='left')
+        .join(rosters, left_on='entity_official_id', right_on='OfficialId', how='left')
         .join_asof(
             tracking.sort(c('ts')),
             on=c('ts'), 
@@ -79,15 +67,30 @@ def _(tracking):
 @app.cell
 def _(selector, ts_tracking):
     rink = NHLRink()
-    rink.scatter(
-        x=ts_tracking.select(c('x')), 
-        y=ts_tracking.select(c('y')), 
-    )
+
     rink.arrow(
         x=ts_tracking.select(c('x')), 
         y=ts_tracking.select(c('y')),
         dx=ts_tracking.select(c('vx')), 
         dy=ts_tracking.select(c('vy'))
+    )
+
+    rink.scatter(
+        x=ts_tracking.select(c('x')), 
+        y=ts_tracking.select(c('y')),
+        c=ts_tracking.select(c('VisOrHome').replace({'Home': 'tab:red', 'Visitor': 'tab:blue'})).to_series(),
+        s=250, 
+        edgecolor='black'
+    )
+
+    rink.text(
+        ts_tracking.select(c('x')), 
+        ts_tracking.select(c('y')), 
+        ts_tracking.select(c('JerseyNum')), 
+        fontsize=10, 
+        ha="center", 
+        va="center", 
+        color="white"
     )
 
     mo.vstack([
