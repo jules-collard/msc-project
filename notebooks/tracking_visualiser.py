@@ -9,6 +9,7 @@ with app.setup:
     import marimo as mo
     import polars as pl
     from polars import col as c
+    import numpy as np
     from hockey_rink import NHLRink
 
     from parquet_helpers import EntityTrackingReader
@@ -35,10 +36,10 @@ def _():
 
 
 @app.cell
-def _(period_selector, rosters, time_selector, tracking):
+def _(rosters, tracking):
     player_ids = tracking.select(c('entity_official_id')).unique()
     timestamps = pl.from_dict(
-        {'period': [period_selector.value], 'period_time': [time_selector.value]},
+        {'period': np.repeat(np.arange(1, 4), 1200 / 0.1), 'period_time': np.tile(np.arange(1200, step=0.1), 3).round(1)},
         schema={'period': pl.Int32(), 'period_time': pl.Float64()}
     ).with_columns(
         game_time=(c('period') - 1) * 1200 + c('period_time')
@@ -61,12 +62,6 @@ def _(period_selector, rosters, time_selector, tracking):
 
 
 @app.cell
-def _(tracking_at_time):
-    tracking_at_time
-    return
-
-
-@app.cell
 def _():
     period_selector = mo.ui.number(start=1, stop=3, step=1)
     time_selector = mo.ui.number(start=0, stop=1200, step=0.1)
@@ -75,27 +70,29 @@ def _():
 
 @app.cell
 def _(period_selector, time_selector, tracking_at_time):
+    display_tracking = tracking_at_time.filter(c('period') == period_selector.value, c('period_time') == time_selector.value)
+
     rink = NHLRink()
 
     rink.arrow(
-        x=tracking_at_time.select(c('x')), 
-        y=tracking_at_time.select(c('y')),
-        dx=tracking_at_time.select(c('vx')), 
-        dy=tracking_at_time.select(c('vy'))
+        x=display_tracking.select(c('x')), 
+        y=display_tracking.select(c('y')),
+        dx=display_tracking.select(c('vx')), 
+        dy=display_tracking.select(c('vy'))
     )
 
     rink.scatter(
-        x=tracking_at_time.select(c('x')), 
-        y=tracking_at_time.select(c('y')),
-        c=tracking_at_time.select(c('VisOrHome').replace({'Home': 'tab:red', 'Visitor': 'tab:blue'})).to_series(),
+        x=display_tracking.select(c('x')), 
+        y=display_tracking.select(c('y')),
+        c=display_tracking.select(c('VisOrHome').replace({'Home': 'tab:red', 'Visitor': 'tab:blue'})).to_series(),
         s=250, 
         edgecolor='black'
     )
 
     rink.text(
-        tracking_at_time.select(c('x')), 
-        tracking_at_time.select(c('y')), 
-        tracking_at_time.select(c('JerseyNum')), 
+        display_tracking.select(c('x')), 
+        display_tracking.select(c('y')), 
+        display_tracking.select(c('JerseyNum')), 
         fontsize=10, 
         ha="center", 
         va="center", 
