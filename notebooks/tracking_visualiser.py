@@ -12,6 +12,7 @@ with app.setup:
     from hockey_rink import NHLRink
 
     from parquet_helpers import EntityTrackingReader
+    from tracking_processing import derive_game_clock
 
 
 @app.cell
@@ -20,7 +21,7 @@ def _():
         reader = EntityTrackingReader(f.read())
 
     tracking_pa = reader.get_table()
-    tracking = pl.from_arrow(tracking_pa)
+    tracking = pl.from_arrow(tracking_pa).lazy().pipe(derive_game_clock).collect()
     return (tracking,)
 
 
@@ -34,59 +35,67 @@ def _():
 
 
 @app.cell
-def _(rosters, selector, tracking):
+def _(period_selector, rosters, time_selector, tracking):
     player_ids = tracking.select(c('entity_official_id')).unique()
-    timestamps = pl.from_dict({'ts': [selector.value]}, schema={'ts': pl.Float64()})
-    ts_tracking = ( 
+    timestamps = pl.from_dict(
+        {'period': [period_selector.value], 'period_time': [time_selector.value]},
+        schema={'period': pl.Int32(), 'period_time': pl.Float64()}
+    ).with_columns(
+        game_time=(c('period') - 1) * 1200 + c('period_time')
+    )
+
+    tracking_at_time = ( 
         timestamps
-        .join(player_ids, how='cross').sort(c('ts'))
+        .join(player_ids, how='cross')
+        .sort(c('game_time'))
         .join(rosters, left_on='entity_official_id', right_on='OfficialId', how='left')
         .join_asof(
-            tracking.sort(c('ts')),
-            on=c('ts'), 
+            tracking.sort(c('game_time')),
+            on=c('game_time'), 
             by='entity_official_id', 
             strategy='forward', 
             tolerance=0.1
         ).drop_nulls(c('entity_id'))
     )
-    return (ts_tracking,)
+    return (tracking_at_time,)
 
 
 @app.cell
-def _(ts_tracking):
-    ts_tracking
+def _(tracking_at_time):
+    tracking_at_time
     return
 
 
 @app.cell
-def _(tracking):
-    selector = mo.ui.number(value=tracking.select(c('ts')).min().item(), step=0.1)
-    return (selector,)
+def _():
+    period_selector = mo.ui.number(start=1, stop=3, step=1)
+    time_selector = mo.ui.number(start=0, stop=1200, step=0.1)
+    return period_selector, time_selector
 
 
 @app.cell
-def _(selector, ts_tracking):
+def _(period_selector, time_selector, tracking_at_time):
     rink = NHLRink()
 
     rink.arrow(
-        x=ts_tracking.select(c('x')), 
-        y=ts_tracking.select(c('y')),
-        dx=ts_tracking.select(c('vx')), 
-        dy=ts_tracking.select(c('vy'))
+        x=tracking_at_time.select(c('x')), 
+        y=tracking_at_time.select(c('y')),
+        dx=tracking_at_time.select(c('vx')), 
+        dy=tracking_at_time.select(c('vy'))
     )
 
     rink.scatter(
-        x=ts_tracking.select(c('x')), 
-        y=ts_tracking.select(c('y')),
-        c=ts_tracking.select(c('VisOrHome').replace({'Home': 'tab:red', 'Visitor': 'tab:blue'})).to_series(),
+        x=tracking_at_time.select(c('x')), 
+        y=tracking_at_time.select(c('y')),
+        c=tracking_at_time.select(c('VisOrHome').replace({'Home': 'tab:red', 'Visitor': 'tab:blue'})).to_series(),
         s=250, 
         edgecolor='black'
     )
 
     rink.text(
-        ts_tracking.select(c('x')), 
-        ts_tracking.select(c('y')), 
-        ts_tracking.select(c('JerseyNum')), 
+        tracking_at_time.select(c('x')), 
+        tracking_at_time.select(c('y')), 
+        tracking_at_time.select(c('JerseyNum')), 
         fontsize=10, 
         ha="center", 
         va="center", 
@@ -94,7 +103,7 @@ def _(selector, ts_tracking):
     )
 
     mo.vstack([
-        selector,
+        mo.hstack([period_selector, time_selector], justify='start'),
         rink.draw()
     ])
     return
