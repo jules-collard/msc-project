@@ -72,3 +72,18 @@ def add_pass_target(events: pl.DataFrame | pl.LazyFrame):
             )
         ).drop(c('target_x_coord', 'target_y_coord', 'pass_group_id'))
     )
+
+def add_carry_info(events: pl.DataFrame | pl.LazyFrame):
+    """
+    Function to extract endpoint of carry events.
+
+    Not extensive - sometimes will be incorrect due to other events being present.
+    """
+
+    return (
+        events
+        .with_columns(
+            carry_target_x_coord=pl.when(c('name') == 'carry').then(c('x_coord').shift(-1)),
+            carry_target_y_coord=pl.when(c('name') == 'carry').then(c('y_coord').shift(-1))
+        )
+    )
