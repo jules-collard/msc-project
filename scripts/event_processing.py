@@ -25,32 +25,27 @@ def explode_events(events: pl.DataFrame | pl.LazyFrame):
     )
     return exploded
 
-def clean_shots(shots: pl.DataFrame | pl.LazyFrame):
+def add_shot_info(events: pl.DataFrame | pl.LazyFrame):
     """
     Function to extract relevant indicator columns from shot events.
 
     Creates columns for goal, shot type, net location of shot on target, etc.
     """
-
-    try:
-        assert shots.select(c('name') == 'shot').to_series().all()
-    except AttributeError: # If LazyFrame
-        assert shots.select(c('name') == 'shot').collect().to_series().all()
     
     return (
-        shots
+        events
         .with_columns(
-            goal = c('flags').list.contains('withgoal'),
-            shot_type = c('flags').list.first(),
-            net_location = pl.when(c('outcome') == 'successful').then(c('flags').list.last()),
-            pressured = c('flags').list.contains('withpressure'),
-            quickreleased = c('flags').list.contains('quickrelease'),
-            onetimer = c('flags').list.contains('1timer'),
-            rebound = c('flags').list.contains('withrebound'),
-            on_net = c('outcome').eq('successful'),
-            blocked = c('type').str.contains('blocked'),
-            seam_pass = c('flags').list.contains('seam')
-        ).drop(cs.contains('possession'), cs.starts_with('previous'), cs.starts_with('expected_goals'), cs.by_name('player_jersey'))
+            shot_goal = pl.when(c('name')=='shot').then(c('flags').list.contains('withgoal')),
+            shot_type = pl.when(c('name')=='shot').then(c('flags').list.first()),
+            shot_net_location = pl.when(c('name')=='shot', c('outcome') == 'successful').then(c('flags').list.last()),
+            shot_pressured = pl.when(c('name')=='shot').then(c('flags').list.contains('withpressure')),
+            shot_quickreleased = pl.when(c('name')=='shot').then(c('flags').list.contains('quickrelease')),
+            shot_onetimer = pl.when(c('name')=='shot').then(c('flags').list.contains('1timer')),
+            shot_rebound = pl.when(c('name')=='shot').then(c('flags').list.contains('withrebound')),
+            shot_on_net = pl.when(c('name')=='shot').then(c('outcome').eq('successful')),
+            shot_blocked = pl.when(c('name')=='shot').then(c('type').str.contains('blocked')),
+            shot_from_seam_pass = pl.when(c('name')=='shot').then(c('flags').list.contains('seam'))
+        )
     )
 
 def add_pass_target(events: pl.DataFrame | pl.LazyFrame):
