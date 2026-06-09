@@ -18,7 +18,7 @@ def derive_game_clock(tracking: pl.DataFrame | pl.LazyFrame): # USE FOR SINGLE G
             period_time = c('delta').cum_sum().over('period')
         ).with_columns(
             game_time = (c('period') - 1) * 1200 + c('period_time')
-        )
+        ).drop(c('delta'))
     )
 
 def convert_timestamps(tracking: pl.DataFrame | pl.LazyFrame):
