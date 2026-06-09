@@ -52,3 +52,28 @@ def clean_shots(shots: pl.DataFrame | pl.LazyFrame):
             seam_pass = c('flags').list.contains('seam')
         ).drop(cs.contains('possession'), cs.starts_with('previous'), cs.starts_with('expected_goals'), cs.by_name('player_jersey'))
     )
+
+def add_pass_target(events: pl.DataFrame | pl.LazyFrame):
+    """
+    Function to extract pass target location, whether successful or not.
+
+    Looks at all events following a pass (until the next pass), and extracts the x_coord and y_coord 
+    of either the corresponding reception or failedpasslocation event into pass_target_x_coord and pass_target_y_coord.
+    """
+    target_events = ['reception', 'failedpasslocation']
+    return (
+        events
+        .with_columns(
+            pass_group_id=(c('name') == 'pass').cum_sum().over('current_possession')
+        ).with_columns(
+            target_x_coord=pl.when(c('name').is_in(target_events)).then(c('x_coord')),
+            target_y_coord=pl.when(c('name').is_in(target_events)).then(c('y_coord'))
+        ).with_columns(
+            pass_target_x_coord=pl.when(c('name')=='pass').then(
+                c('target_x_coord').backward_fill().over(['current_possession', 'pass_group_id'])
+            ),
+            pass_target_y_coord=pl.when(c('name')=='pass').then(
+                c('target_y_coord').backward_fill().over(['current_possession', 'pass_group_id'])
+            )
+        ).drop(c('target_x_coord', 'target_y_coord', 'pass_group_id'))
+    )
