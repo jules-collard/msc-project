@@ -9,11 +9,14 @@ with app.setup:
     import marimo as mo
     import polars as pl
     from polars import col as c
+    from polars import selectors as cs
     import numpy as np
     from hockey_rink import NHLRink
+    from matplotlib import pyplot as plt
 
     from parquet_helpers import EntityTrackingReader
     from tracking_processing import derive_game_clock
+    from event_processing import add_pass_target, add_carry_info, add_shot_info, remove_non_viz_events
 
 
 @app.cell
@@ -33,6 +36,32 @@ def _():
 
     rosters = pl.from_dicts(rosters_json[0].get("Entities"))
     return (rosters,)
+
+
+@app.cell
+def _():
+    with open("data/one_game/NHL_20252026_playoffs_20260521_MTLvsCAR_sapifullevents.json", "r") as file:
+        events_dict = json.load(file)
+
+    events = pl.from_dicts(events_dict.get("events"), infer_schema_length=None)
+    return (events,)
+
+
+@app.cell
+def _(events):
+    events_viz = (
+        events
+        .pipe(add_pass_target)
+        .pipe(remove_non_viz_events)
+        .pipe(add_carry_info)
+    )
+    return (events_viz,)
+
+
+@app.cell
+def _(events_viz):
+    events_viz
+    return
 
 
 @app.cell
@@ -56,9 +85,26 @@ def _(rosters, tracking):
             by='entity_official_id', 
             strategy='forward', 
             tolerance=0.1
-        ).drop_nulls(c('entity_id'))
+        ).drop_nulls(c('entity_id')) # Remove players not on ice
     )
     return (tracking_at_time,)
+
+
+@app.cell
+def _(events_viz, period_selector, time_selector):
+    current_event_df = (
+        events_viz
+        .filter(c('period') == period_selector.value)
+        .with_columns(time_diff = (c('period_time') - time_selector.value).abs())
+        .filter(c('time_diff') <= 0.1)
+        .head(1)
+    )
+
+    if not current_event_df.is_empty():
+        current_event = current_event_df.to_dicts()[0]
+    else:
+        current_event = None
+    return (current_event,)
 
 
 @app.cell
@@ -69,7 +115,7 @@ def _():
 
 
 @app.cell
-def _(period_selector, time_selector, tracking_at_time):
+def _(current_event, period_selector, time_selector, tracking_at_time):
     display_tracking = tracking_at_time.filter(c('period') == period_selector.value, c('period_time') == time_selector.value)
 
     rink = NHLRink()
@@ -98,6 +144,23 @@ def _(period_selector, time_selector, tracking_at_time):
         va="center", 
         color="white"
     )
+
+    if current_event:
+        rink.scatter(
+            x=current_event['x_coord'],
+            y=current_event['y_coord'], 
+            s=100, 
+            c='black'
+        )
+        plt.title(f"{current_event['name']} - {current_event['shorthand']}: {current_event['outcome']} ({current_event['flags']})")
+        if current_event['name'] == 'pass':
+            rink.wavy_arrow(
+                x=current_event['x_coord'],
+                y=current_event['y_coord'],
+                x2=current_event['pass_target_x_coord'], 
+                y2=current_event['pass_target_y_coord'],
+                zorder=5
+            )
 
     mo.vstack([
         mo.hstack([period_selector, time_selector], justify='start'),

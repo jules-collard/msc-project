@@ -87,3 +87,15 @@ def add_carry_info(events: pl.DataFrame | pl.LazyFrame):
             carry_target_y_coord=pl.when(c('name') == 'carry').then(c('y_coord').shift(-1))
         )
     )
+
+def remove_non_viz_events(events: pl.DataFrame | pl.LazyFrame):
+    """
+    Function to remove events that are not useful for visualisation.
+    """
+    return (
+        events
+        .filter(
+            c('name').is_in(['pressure', 'assist', 'goal', 'failedpasslocation', 'controlledentryagainst', 'dumpinagainst']).not_(),
+            c('name').eq('faceoff').and_(c('zone').is_not_null()).not_(), # remove faceoff win/loss rows
+        )
+    )
