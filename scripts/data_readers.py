@@ -1,9 +1,12 @@
+from typing import List
 import json
 
 import polars as pl
 from polars import col as c
+import ijson
 
 from parquet_helpers import EntityTrackingReader
+from tracking_processing import derive_game_clock
 
 def read_events(path: str, lazy=True) -> pl.DataFrame | pl.LazyFrame:
     """
@@ -48,3 +51,42 @@ def read_entity_tracking(path: str, lazy=True) -> pl.DataFrame | pl.LazyFrame:
 
     df = pl.from_arrow(reader.get_table())
     return df.lazy() if lazy else df
+
+def read_puck_tracking(paths: List[str], periods: List[int], lazy=True, clean=True) -> pl.DataFrame | pl.LazyFrame:
+    """
+    Function to parse raw puck tracking data. Takes list of filenames and corresponding
+    periods, and returns 1 polars dataframe with puck tracking. Uses ijson and generators
+    to avoid reading all files into memory at once.
+    """
+    
+    def all_puck_objects():
+        for path, period in zip(paths, periods):    
+            with open(path, "r") as f:
+                for o in ijson.items(f, 'item.TrackingData.item', use_float=True):
+                    if o['EntityId'] == '1':
+                        yield o, period
+
+    def puck_with_period():
+        for o, period in all_puck_objects():
+            yield {**o, 'period': period}
+
+    puck_tracking = (
+        pl.from_dicts(puck_with_period()).lazy()
+        .with_columns(
+            c('Location').struct.rename_fields(['raw_x', 'raw_y', 'raw_z']).struct.unnest(), 
+            c('Velocity').struct.rename_fields(['vx', 'vy', 'vz']).struct.unnest()
+        ).with_columns(period=pl.lit(1))
+        .drop(c('Location', 'Velocity', 'Acceleration', 'OnPlayingSurface', 'PayloadData', 'EntityOfficialId',
+                'Landmarks3D', 'MetaTag1', 'LocationLTC', 'MeasurementId'))
+        .rename({'LocationUTC':'ts', 'ClockState':'clock_state'})
+    )
+
+    if clean:
+        puck_tracking = (
+            puck_tracking
+            .pipe(derive_game_clock)
+            .filter(c('clock_state') == 1)
+            .drop(c('clock_state'))
+        )
+
+    return puck_tracking if lazy else puck_tracking.collect()
