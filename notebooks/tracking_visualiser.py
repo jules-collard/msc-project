@@ -12,20 +12,30 @@ with app.setup:
     from matplotlib import pyplot as plt
 
     from tracking_processing import derive_game_clock
-    from data_readers import read_entity_registration, read_entity_tracking, read_events
+    from data_readers import read_entity_registration, read_entity_tracking, read_events, read_puck_tracking
     from event_processing import add_pass_target, add_carry_info, remove_non_viz_events
 
 
 @app.cell
 def _():
-    tracking = (
+    player_tracking = (
         read_entity_tracking("data/one_game/NHL_20252026_postseason_20260521_MTLvsCAR_entity_tracking_processed_measurements.parquet")
-        .pipe(derive_game_clock).collect()
+    )
+
+    periods = [1,2,3]
+    puck_tracking = read_puck_tracking(
+        [f"data/one_game/HOCKEY_NHL_2026_05_21_MTL@CAR_HITS311_Period_{i}.json" for i in periods], periods
     )
 
     rosters = read_entity_registration("data/one_game/NHL_20252026_postseason_20260521_MTLvsCAR_entity_registration.json", lazy=False)
     events = read_events("data/one_game/NHL_20252026_playoffs_20260521_MTLvsCAR_sapifullevents.json", lazy=False)
-    return events, rosters, tracking
+    return events, player_tracking, puck_tracking, rosters
+
+
+@app.cell
+def _(player_tracking, puck_tracking):
+    tracking = pl.concat([player_tracking, puck_tracking], how='diagonal_relaxed').pipe(derive_game_clock).collect()
+    return (tracking,)
 
 
 @app.cell
@@ -41,7 +51,7 @@ def _(events):
 
 @app.cell
 def _(rosters, tracking):
-    player_ids = tracking.select(c('entity_official_id')).unique()
+    entity_ids = tracking.select(c('entity_id')).unique()
     timestamps = pl.from_dict(
         {'period': np.repeat(np.arange(1, 4), 1200 / 0.1), 'period_time': np.tile(np.arange(1200, step=0.1), 3).round(1)},
         schema={'period': pl.Int32(), 'period_time': pl.Float64()}
@@ -51,16 +61,18 @@ def _(rosters, tracking):
 
     tracking_at_time = ( 
         timestamps
-        .join(player_ids, how='cross')
+        .join(entity_ids, how='cross')
         .sort(c('game_time'))
-        .join(rosters, left_on='entity_official_id', right_on='OfficialId', how='left')
+        .join(rosters, left_on='entity_id', right_on='EntityId', how='left')
         .join_asof(
             tracking.sort(c('game_time')),
             on=c('game_time'), 
-            by='entity_official_id', 
+            by='entity_id', 
             strategy='forward', 
             tolerance=0.1
-        ).drop_nulls(c('entity_id')) # Remove players not on ice
+        ).filter(
+            c('entity_official_id').is_not_null().or_(c('entity_id') == '1')
+        ) # Remove players not on ice
     )
     return (tracking_at_time,)
 
@@ -91,7 +103,16 @@ def _():
 
 @app.cell
 def _(current_event, period_selector, time_selector, tracking_at_time):
-    display_tracking = tracking_at_time.filter(c('period') == period_selector.value, c('period_time') == time_selector.value)
+    display_tracking = tracking_at_time.filter(
+        c('entity_id') != '1',
+        c('period') == period_selector.value,
+        c('period_time') == time_selector.value
+    )
+    puck_display_tracking = tracking_at_time.filter(
+        c('entity_id') == '1',
+        c('period') == period_selector.value,
+        c('period_time') == time_selector.value
+    )
 
     rink = NHLRink()
 
@@ -120,12 +141,20 @@ def _(current_event, period_selector, time_selector, tracking_at_time):
         color="white"
     )
 
+    rink.scatter(
+        x=puck_display_tracking.select(c('raw_x')),
+        y=puck_display_tracking.select(c('raw_y')),
+        s=100, 
+        c='black'
+    )
+
     if current_event:
         rink.scatter(
             x=current_event['x_coord'],
             y=current_event['y_coord'], 
             s=100, 
-            c='black'
+            c='black', 
+            marker='x'
         )
         plt.title(f"{current_event['name']} - {current_event['shorthand']}: {current_event['outcome']} ({current_event['flags']})")
         if current_event['name'] == 'pass':

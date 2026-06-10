@@ -52,7 +52,7 @@ def read_entity_tracking(path: str, lazy=True) -> pl.DataFrame | pl.LazyFrame:
     df = pl.from_arrow(reader.get_table())
     return df.lazy() if lazy else df
 
-def read_puck_tracking(paths: List[str], periods: List[int], lazy=True, clean=True) -> pl.DataFrame | pl.LazyFrame:
+def read_puck_tracking(paths: List[str], periods: List[int], lazy=True) -> pl.DataFrame | pl.LazyFrame:
     """
     Function to parse raw puck tracking data. Takes list of filenames and corresponding
     periods, and returns 1 polars dataframe with puck tracking. Uses ijson and generators
@@ -77,16 +77,8 @@ def read_puck_tracking(paths: List[str], periods: List[int], lazy=True, clean=Tr
             c('Velocity').struct.rename_fields(['vx', 'vy', 'vz']).struct.unnest()
         ).with_columns(period=pl.lit(1))
         .drop(c('Location', 'Velocity', 'Acceleration', 'OnPlayingSurface', 'PayloadData', 'EntityOfficialId',
-                'Landmarks3D', 'MetaTag1', 'LocationLTC', 'MeasurementId'))
-        .rename({'LocationUTC':'ts', 'ClockState':'clock_state'})
+                'Landmarks3D', 'MetaTag1', 'LocationLTC', 'MeasurementId', 'LocationConfidence'))
+        .rename({'LocationUTC':'ts', 'ClockState':'clock_state', 'EntityId':'entity_id'})
     )
-
-    if clean:
-        puck_tracking = (
-            puck_tracking
-            .pipe(derive_game_clock)
-            .filter(c('clock_state') == 1)
-            .drop(c('clock_state'))
-        )
 
     return puck_tracking if lazy else puck_tracking.collect()
