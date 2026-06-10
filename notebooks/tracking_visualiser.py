@@ -4,47 +4,28 @@ __generated_with = "0.23.8"
 app = marimo.App(width="medium")
 
 with app.setup:
-    import json
-
     import marimo as mo
     import polars as pl
     from polars import col as c
-    from polars import selectors as cs
     import numpy as np
     from hockey_rink import NHLRink
     from matplotlib import pyplot as plt
 
-    from parquet_helpers import EntityTrackingReader
     from tracking_processing import derive_game_clock
-    from event_processing import add_pass_target, add_carry_info, add_shot_info, remove_non_viz_events
+    from data_readers import read_entity_registration, read_entity_tracking, read_events
+    from event_processing import add_pass_target, add_carry_info, remove_non_viz_events
 
 
 @app.cell
 def _():
-    with open("data/one_game/NHL_20252026_postseason_20260521_MTLvsCAR_entity_tracking_processed_measurements.parquet", mode="rb") as f:
-        reader = EntityTrackingReader(f.read())
+    tracking = (
+        read_entity_tracking("data/one_game/NHL_20252026_postseason_20260521_MTLvsCAR_entity_tracking_processed_measurements.parquet")
+        .pipe(derive_game_clock).collect()
+    )
 
-    tracking_pa = reader.get_table()
-    tracking = pl.from_arrow(tracking_pa).lazy().pipe(derive_game_clock).collect()
-    return (tracking,)
-
-
-@app.cell
-def _():
-    with open("data/one_game/NHL_20252026_postseason_20260521_MTLvsCAR_entity_registration.json") as roster_f:
-        rosters_json = json.load(roster_f)
-
-    rosters = pl.from_dicts(rosters_json[0].get("Entities"))
-    return (rosters,)
-
-
-@app.cell
-def _():
-    with open("data/one_game/NHL_20252026_playoffs_20260521_MTLvsCAR_sapifullevents.json", "r") as file:
-        events_dict = json.load(file)
-
-    events = pl.from_dicts(events_dict.get("events"), infer_schema_length=None)
-    return (events,)
+    rosters = read_entity_registration("data/one_game/NHL_20252026_postseason_20260521_MTLvsCAR_entity_registration.json", lazy=False)
+    events = read_events("data/one_game/NHL_20252026_playoffs_20260521_MTLvsCAR_sapifullevents.json", lazy=False)
+    return events, rosters, tracking
 
 
 @app.cell
@@ -56,12 +37,6 @@ def _(events):
         .pipe(add_carry_info)
     )
     return (events_viz,)
-
-
-@app.cell
-def _(events_viz):
-    events_viz
-    return
 
 
 @app.cell
