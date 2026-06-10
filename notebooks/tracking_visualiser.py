@@ -33,6 +33,12 @@ def _():
 
 
 @app.cell
+def _(events):
+    events
+    return
+
+
+@app.cell
 def _(player_tracking, puck_tracking):
     tracking = pl.concat([player_tracking, puck_tracking], how='diagonal_relaxed').pipe(derive_game_clock).collect()
     return (tracking,)
@@ -157,14 +163,14 @@ def _(current_event, period_selector, time_selector, tracking_at_time):
             marker='x'
         )
         plt.title(f"{current_event['name']} - {current_event['shorthand']}: {current_event['outcome']} ({current_event['flags']})")
-        if current_event['name'] == 'pass':
-            rink.wavy_arrow(
-                x=current_event['x_coord'],
-                y=current_event['y_coord'],
-                x2=current_event['pass_target_x_coord'], 
-                y2=current_event['pass_target_y_coord'],
-                zorder=5
-            )
+        # if current_event['name'] == 'pass':
+        #     rink.wavy_arrow(
+        #         x=current_event['x_coord'],
+        #         y=current_event['y_coord'],
+        #         x2=current_event['pass_target_x_coord'], 
+        #         y2=current_event['pass_target_y_coord'],
+        #         zorder=5
+        #     )
 
     mo.vstack([
         mo.hstack([period_selector, time_selector], justify='start'),

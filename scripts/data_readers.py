@@ -75,8 +75,7 @@ def read_puck_tracking(paths: List[str], periods: List[int], lazy=True) -> pl.Da
         .with_columns(
             c('Location').struct.rename_fields(['raw_x', 'raw_y', 'raw_z']).struct.unnest(), 
             c('Velocity').struct.rename_fields(['vx', 'vy', 'vz']).struct.unnest()
-        ).with_columns(period=pl.lit(1))
-        .drop(c('Location', 'Velocity', 'Acceleration', 'OnPlayingSurface', 'PayloadData', 'EntityOfficialId',
+        ).drop(c('Location', 'Velocity', 'Acceleration', 'OnPlayingSurface', 'PayloadData', 'EntityOfficialId',
                 'Landmarks3D', 'MetaTag1', 'LocationLTC', 'MeasurementId', 'LocationConfidence'))
         .rename({'LocationUTC':'ts', 'ClockState':'clock_state', 'EntityId':'entity_id'})
     )
