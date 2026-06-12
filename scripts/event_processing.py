@@ -2,7 +2,7 @@ import polars as pl
 from polars import col as c
 from polars import selectors as cs
 
-def explode_events(events: pl.DataFrame | pl.LazyFrame):
+def explode_events(events: pl.DataFrame | pl.LazyFrame) -> pl.DataFrame | pl.LazyFrame:
     """
     Function to lengthen event data for joining with tracking data.
 
@@ -25,7 +25,7 @@ def explode_events(events: pl.DataFrame | pl.LazyFrame):
     )
     return exploded
 
-def add_shot_info(events: pl.DataFrame | pl.LazyFrame):
+def add_shot_info(events: pl.DataFrame | pl.LazyFrame) -> pl.DataFrame | pl.LazyFrame:
     """
     Function to extract relevant indicator columns from shot events.
 
@@ -48,7 +48,7 @@ def add_shot_info(events: pl.DataFrame | pl.LazyFrame):
         )
     )
 
-def add_pass_target(events: pl.DataFrame | pl.LazyFrame):
+def add_pass_target(events: pl.DataFrame | pl.LazyFrame) -> pl.DataFrame | pl.LazyFrame:
     """
     Function to extract pass target location, whether successful or not.
 
@@ -73,7 +73,7 @@ def add_pass_target(events: pl.DataFrame | pl.LazyFrame):
         ).drop(c('target_x_coord', 'target_y_coord', 'pass_group_id'))
     )
 
-def add_carry_info(events: pl.DataFrame | pl.LazyFrame):
+def add_carry_info(events: pl.DataFrame | pl.LazyFrame) -> pl.DataFrame | pl.LazyFrame:
     """
     Function to extract endpoint of carry events.
 
@@ -88,7 +88,7 @@ def add_carry_info(events: pl.DataFrame | pl.LazyFrame):
         )
     )
 
-def remove_non_viz_events(events: pl.DataFrame | pl.LazyFrame):
+def remove_non_viz_events(events: pl.DataFrame | pl.LazyFrame) -> pl.DataFrame | pl.LazyFrame:
     """
     Function to remove events that are not useful for visualisation.
     """
