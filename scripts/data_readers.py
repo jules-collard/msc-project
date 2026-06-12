@@ -6,7 +6,6 @@ from polars import col as c
 import ijson
 
 from parquet_helpers import EntityTrackingReader
-from tracking_processing import derive_game_clock
 
 def read_events(path: str, lazy=True) -> pl.DataFrame | pl.LazyFrame:
     """

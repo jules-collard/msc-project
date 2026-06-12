@@ -1,3 +1,5 @@
+from typing import Dict
+
 import polars as pl
 from polars import col as c
 from polars import selectors as cs
@@ -17,10 +19,10 @@ def explode_events(events: pl.DataFrame | pl.LazyFrame) -> pl.DataFrame | pl.Laz
         ).unpivot(
             on=['with_team', 'opposing_team'], 
             variable_name='team_source', 
-            value_name='onice_player_id', 
+            value_name='onice_player_ref', 
             index=cs.all() - cs.by_name('with_team', 'opposing_team'),
         )
-        .explode('onice_player_id')
+        .explode('onice_player_ref')
         .drop(cs.ends_with('on_ice_refs'), cs.by_name('team_goalie_on_ice_ref'))
     )
     return exploded
@@ -98,4 +100,48 @@ def remove_non_viz_events(events: pl.DataFrame | pl.LazyFrame) -> pl.DataFrame |
             c('name').is_in(['pressure', 'assist', 'goal', 'failedpasslocation', 'controlledentryagainst', 'dumpinagainst']).not_(),
             c('name').eq('faceoff').and_(c('zone').is_not_null()).not_(), # remove faceoff win/loss rows
         )
+    )
+
+def join_tracking(
+    events: pl.DataFrame | pl.LazyFrame,
+    tracking: pl.DataFrame | pl.LazyFrame,
+    mapping: Dict[str, str]
+) -> pl.DataFrame | pl.LazyFrame:
+    """
+    Function to join tracking data to events. Tracking data MUST have game_time field.
+    For each event and each on-ice player, finds latest tracking observation before the
+    event, within 0.15s. Tracking data is also normalised to match adj_coord alignment.
+    
+    Returns dataframe/lazyframe with one row per on-ice player per event.
+    """
+
+    exploded_events = (
+        events
+        .sort(c('game_time'))
+        .with_columns(flip = (c('x_coord') != c('x_adj_coord')) | (c('y_coord') != c('y_adj_coord')))
+        .pipe(explode_events)
+        .with_columns(
+            c('onice_player_ref').replace_strict(mapping), 
+            c('opposing_team_goalie_on_ice_ref').replace_strict(mapping, default=None)
+        )
+    )
+    cleaned_tracking = (
+        tracking
+        .drop('ts', 'period', 'segment_idx', 'clock_state', cs.starts_with('raw'), 'smt_speed', cs.starts_with('kappa'))
+        .sort(c('game_time'))
+    )
+    return (
+        exploded_events
+        .join_asof(
+            cleaned_tracking, 
+            on='game_time',
+            by_left='onice_player_ref', 
+            by_right='entity_official_id',
+            tolerance=0.15,
+            check_sortedness=False
+        ).with_columns(pl.when(c('flip')).then(
+            -c('x', 'y', 'z', 'vx', 'vy', 'vz', 'ax', 'ay', 'az')
+        ).otherwise(
+            c('x', 'y', 'z', 'vx', 'vy', 'vz', 'ax', 'ay', 'az')
+        ))
     )
