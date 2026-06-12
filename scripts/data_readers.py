@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Dict
 import json
 
 import polars as pl
@@ -81,3 +81,17 @@ def read_puck_tracking(paths: List[str], periods: List[int], lazy=True) -> pl.Da
     )
 
     return puck_tracking if lazy else puck_tracking.collect()
+
+def read_id_mapping(path: str) -> Dict[str, str]:
+    """
+    Function to read NHL/Sportlogiq player ID mappings, returning a dictionary of Sportlogiq -> NHL ID mappings.
+    """
+
+    mapping_dict = ( 
+        pl.read_csv(path)
+        .drop(c('PlayerName'))
+        .cast(pl.String)
+        .rows_by_key('SportlogiqPlayerID', unique=True)
+    )
+
+    return {key: value[0] for key, value in mapping_dict.items()}
