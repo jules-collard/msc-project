@@ -1,7 +1,7 @@
 import polars as pl
 from polars import col as c
 
-def derive_game_clock(tracking: pl.DataFrame | pl.LazyFrame): # USE FOR SINGLE GAME ONLY
+def derive_game_clock(tracking: pl.DataFrame | pl.LazyFrame) -> pl.DataFrame | pl.LazyFrame: # USE FOR SINGLE GAME ONLY
     """
     Function to add period_time and game_time fields to tracking data.
     
@@ -21,8 +21,57 @@ def derive_game_clock(tracking: pl.DataFrame | pl.LazyFrame): # USE FOR SINGLE G
         ).drop(c('delta'))
     )
 
-def convert_timestamps(tracking: pl.DataFrame | pl.LazyFrame):
+def convert_timestamps(tracking: pl.DataFrame | pl.LazyFrame) -> pl.DataFrame | pl.LazyFrame:
     """
     Function to convert ts field from UNIX epochs to DateTime format (only for legibility)
     """
     return tracking.with_columns(pl.from_epoch(c("ts"), time_unit="s").alias("ts"))
+
+def adjust_vectors(tracking: pl.DataFrame | pl.LazyFrame) -> pl.DataFrame | pl.LazyFrame:
+    """
+    Adds adj_... columns to tracking locations, velocities and accelerations to correct"
+    for attacking direction.
+    """
+
+    if isinstance(tracking, pl.DataFrame):
+        assert 'flip' in tracking.columns
+    elif isinstance(tracking, pl.LazyFrame):
+        assert 'flip' in tracking.collect_schema().names()
+    else:
+        raise TypeError
+
+    return (
+        tracking
+        .with_columns(
+            pl.when(c('flip'))
+            .then(-c('x', 'y', 'vx', 'vy', 'ax', 'ay'))
+            .otherwise(c('x', 'y', 'vx', 'vy', 'ax', 'ay'))
+            .name.suffix('_adj')
+        )
+    )
+
+def calculate_goal_vectors(tracking: pl.DataFrame | pl.LazyFrame) -> pl.DataFrame | pl.LazyFrame:
+    GOAL_X = 89
+    GOAL_Y = 0
+    
+    return (
+        tracking
+            .with_columns(
+        # 1. Calculate the vector from the puck to the net
+        (GOAL_X - pl.col("x_adj")).alias("dx_to_goal"),
+        (GOAL_Y - pl.col("y_adj")).alias("dy_to_goal")
+        ).with_columns(
+            # 2. Calculate the distance (magnitude of the vector)
+            (((pl.col("dx_to_goal")**2) + (pl.col("dy_to_goal")**2)).sqrt() + 1e-6).alias("dist_to_goal")
+        ).with_columns(
+            # 3. Calculate Unit Vector components (normalized direction)
+            (pl.col("dx_to_goal") / pl.col("dist_to_goal")).alias("u_x"),
+            (pl.col("dy_to_goal") / pl.col("dist_to_goal")).alias("u_y")
+        ).with_columns(
+            # 4. Dot Products: Project velocity and acceleration onto the unit vector
+            ((pl.col("vx_adj") * pl.col("u_x")) + (pl.col("vy_adj") * pl.col("u_y"))).alias("goal_speed"),
+            ((pl.col("ax_adj") * pl.col("u_x")) + (pl.col("ay_adj") * pl.col("u_y"))).alias("goal_acceleration")
+        ).drop(
+            "dx_to_goal", "dy_to_goal", "dist_to_goal", "u_x", "u_y"
+        )
+    )

@@ -102,6 +102,17 @@ def remove_non_viz_events(events: pl.DataFrame | pl.LazyFrame) -> pl.DataFrame |
         )
     )
 
+def add_flip(events: pl.DataFrame | pl.LazyFrame) -> pl.DataFrame | pl.LazyFrame:
+    """
+    Function to identify whether raw coordinates require flipping to recover adjusted coordinates.
+    """
+    return (
+        events
+        .with_columns(
+            flip = (c('x_coord').ne(c('x_adj_coord'))).or_(c('y_coord').ne(c('y_adj_coord')))
+        )
+    )
+
 def join_tracking(
     events: pl.DataFrame | pl.LazyFrame,
     tracking: pl.DataFrame | pl.LazyFrame,

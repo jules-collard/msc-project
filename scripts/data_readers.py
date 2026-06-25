@@ -72,8 +72,11 @@ def read_puck_tracking(paths: List[str], periods: List[int], lazy=True) -> pl.Da
     puck_tracking = (
         pl.from_dicts(puck_with_period()).lazy()
         .with_columns(
-            c('Location').struct.rename_fields(['raw_x', 'raw_y', 'raw_z']).struct.unnest(), 
-            c('Velocity').struct.rename_fields(['vx', 'vy', 'vz']).struct.unnest()
+            c('Location').struct.rename_fields(['x', 'y', 'z']).struct.unnest(), 
+            c('Velocity').struct.rename_fields(['vx', 'vy', 'vz']).struct.unnest(),
+            c('Acceleration').struct.rename_fields(['ax', 'ay', 'az']).struct.unnest(),
+        ).with_columns(
+            c('z', 'vz', 'az').fill_null(0) # missing z values represent 0 (i.e. puck on ice)
         ).drop(c('Location', 'Velocity', 'Acceleration', 'OnPlayingSurface', 'PayloadData', 'EntityOfficialId',
                 'Landmarks3D', 'MetaTag1', 'LocationLTC', 'MeasurementId', 'LocationConfidence'))
         .rename({'LocationUTC':'ts', 'ClockState':'clock_state', 'EntityId':'entity_id'})
