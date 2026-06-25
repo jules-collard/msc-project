@@ -33,12 +33,6 @@ def _():
 
 
 @app.cell
-def _(events):
-    events
-    return
-
-
-@app.cell
 def _(player_tracking, puck_tracking):
     tracking = pl.concat([player_tracking, puck_tracking], how='diagonal_relaxed').pipe(derive_game_clock).collect()
     return (tracking,)
@@ -176,6 +170,8 @@ def _(current_event, period_selector, time_selector, tracking_at_time):
         mo.hstack([period_selector, time_selector], justify='start'),
         rink.draw()
     ])
+
+    # plt.savefig("example_tracking.svg", transparent=True, bbox_inches="tight", format="svg")
     return
 
 
