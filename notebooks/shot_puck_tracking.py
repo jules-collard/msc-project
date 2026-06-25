@@ -8,7 +8,7 @@ with app.setup:
     import polars as pl
     from polars import col as c
     import plotnine as p9
-    from plotnine import ggplot, aes, geom_line
+    from plotnine import ggplot, aes, geom_line, geom_vline
 
     from data_readers import read_events, read_puck_tracking
     from tracking_processing import derive_game_clock, adjust_vectors, calculate_goal_vectors
@@ -33,9 +33,6 @@ def _():
 
 @app.cell
 def _(puck_tracking, shots):
-    GOAL_X = 89
-    GOAL_Y = 0
-
     tracking_with_shots = (
         puck_tracking
         .join_asof(
@@ -60,21 +57,30 @@ def _(shots):
 
 
 @app.cell
-def _(id_selector, tracking_with_shots):
+def _(id_selector, shots, tracking_with_shots):
     sample = tracking_with_shots.filter(c('shot_id') == id_selector.value)
-    return (sample,)
+    game_time = shots.filter(c('shot_id') == id_selector.value).select(c('game_time')).collect().item()
+    return game_time, sample
 
 
 @app.cell
-def _(id_selector, sample):
+def _(game_time):
+    game_time
+    return
+
+
+@app.cell
+def _(game_time, id_selector, sample):
     speed_plot = (
         ggplot(sample)
         + geom_line(aes(x='game_time', y='goal_speed'))
+        + geom_vline(xintercept=game_time, linetype='dashed', color='red')
     )
 
     acc_plot = (
         ggplot(sample)
         + geom_line(aes(x='game_time', y='goal_acceleration'))
+        + geom_vline(xintercept=game_time, linetype='dashed', color='red')
     )
 
     mo.vstack([
