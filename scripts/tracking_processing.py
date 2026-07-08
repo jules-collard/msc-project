@@ -1,6 +1,8 @@
 import polars as pl
 from polars import col as c
 
+from utils import distance_to_point_2d, magnitude_2d
+
 def derive_game_clock(tracking: pl.DataFrame | pl.LazyFrame) -> pl.DataFrame | pl.LazyFrame: # USE FOR SINGLE GAME ONLY
     """
     Function to add period_time and game_time fields to tracking data.
@@ -56,22 +58,34 @@ def calculate_goal_vectors(tracking: pl.DataFrame | pl.LazyFrame) -> pl.DataFram
     
     return (
         tracking
-            .with_columns(
-        # 1. Calculate the vector from the puck to the net
-        (GOAL_X - pl.col("x_adj")).alias("dx_to_goal"),
-        (GOAL_Y - pl.col("y_adj")).alias("dy_to_goal")
+        .with_columns(
+            # 1. Calculate the vector from the puck to the net
+            (GOAL_X - pl.col("x_adj")).alias("dx_to_goal"),
+            (GOAL_Y - pl.col("y_adj")).alias("dy_to_goal")
         ).with_columns(
             # 2. Calculate the distance (magnitude of the vector)
-            (((pl.col("dx_to_goal")**2) + (pl.col("dy_to_goal")**2)).sqrt() + 1e-6).alias("dist_to_goal")
+            (distance_to_point_2d("x_adj", "y_adj", GOAL_X, GOAL_Y) + 1e-6).alias("dist_to_goal")
         ).with_columns(
             # 3. Calculate Unit Vector components (normalized direction)
             (pl.col("dx_to_goal") / pl.col("dist_to_goal")).alias("u_x"),
             (pl.col("dy_to_goal") / pl.col("dist_to_goal")).alias("u_y")
         ).with_columns(
-            # 4. Dot Products: Project velocity and acceleration onto the unit vector
+            # Dot Products: Project velocity and acceleration onto the unit vector
             ((pl.col("vx_adj") * pl.col("u_x")) + (pl.col("vy_adj") * pl.col("u_y"))).alias("goal_speed"),
-            ((pl.col("ax_adj") * pl.col("u_x")) + (pl.col("ay_adj") * pl.col("u_y"))).alias("goal_acceleration")
+            ((pl.col("ax_adj") * pl.col("u_x")) + (pl.col("ay_adj") * pl.col("u_y"))).alias("goal_acceleration"),
+            # Cross Product
+            ((pl.col("u_x") * pl.col("vy_adj")) - (pl.col("u_y") * pl.col("vx_adj"))).alias("tangent_speed")
+        ).with_columns(
+            pl.arctan2(pl.col("tangent_speed"), pl.col("goal_speed")).degrees().alias("angle_to_goal")
         ).drop(
-            "dx_to_goal", "dy_to_goal", "dist_to_goal", "u_x", "u_y"
+            "dx_to_goal", "dy_to_goal", "dist_to_goal", "u_x", "u_y", "tangent_speed"
+        )
+    )
+
+def calculate_magnitudes(tracking: pl.DataFrame | pl.LazyFrame) -> pl.DataFrame | pl.LazyFrame:
+    return (
+        tracking.with_columns(
+            speed = magnitude_2d('vx', 'vy'),
+            acceleration = magnitude_2d('ax', 'ay'),
         )
     )
