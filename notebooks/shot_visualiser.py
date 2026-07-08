@@ -87,8 +87,8 @@ def _(game_time_selector, shot_tracking):
     )
 
     rink.scatter(
-        x=display_data.select(c('x_adj').first()),
-        y=display_data.select(c('y_adj').first()),
+        x=display_data.select(c('x_adj_coord').first()),
+        y=display_data.select(c('y_adj_coord').first()),
         c='black',
         s=120
     )
