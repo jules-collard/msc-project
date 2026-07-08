@@ -26,18 +26,11 @@ def _():
     tracking = (
         read_entity_tracking(
         "data/one_game/NHL_20252026_postseason_20260521_MTLvsCAR_entity_tracking_processed_measurements.parquet"
-        )
-        .pipe(derive_game_clock)
+        ).pipe(derive_game_clock)
     )
 
     rosters = read_entity_registration("data/one_game/NHL_20252026_postseason_20260521_MTLvsCAR_entity_registration.json", lazy=False)
     return mapping, rosters, shots, tracking
-
-
-@app.cell
-def _(shot_tracking):
-    shot_tracking
-    return
 
 
 @app.cell
@@ -49,8 +42,7 @@ def _(mapping, rosters, shots, tracking):
             left_on='onice_player_ref',
             right_on='OfficialId',
             how='left'
-        )
-        .collect()
+        ).collect()
     )
     return (shot_tracking,)
 
@@ -64,6 +56,12 @@ def _(shot_tracking):
         value=times.first()
     )
     return (game_time_selector,)
+
+
+@app.cell
+def _(display_data):
+    display_data
+    return
 
 
 @app.cell
@@ -81,23 +79,23 @@ def _(game_time_selector, shot_tracking):
     # )
 
     rink.scatter(
-        x=display_data.select(c('x')), 
-        y=display_data.select(c('y')),
+        x=display_data.select(c('x_adj')), 
+        y=display_data.select(c('y_adj')),
         c=display_data.select(c('team_source').replace({'with_team': 'tab:red', 'opposing_team': 'tab:blue'})).to_series(),
         s=250, 
         edgecolor='black'
     )
 
     rink.scatter(
-        x=display_data.select(c('x_adj_coord').first()),
-        y=display_data.select(-c('y_adj_coord').first()),
+        x=display_data.select(c('x_adj').first()),
+        y=display_data.select(c('y_adj').first()),
         c='black',
         s=120
     )
 
     rink.text(
-        display_data.select(c('x')), 
-        display_data.select(c('y')), 
+        display_data.select(c('x_adj')), 
+        display_data.select(c('y_adj')), 
         display_data.select(c('JerseyNum')), 
         fontsize=10, 
         ha="center", 
@@ -112,7 +110,7 @@ def _(game_time_selector, shot_tracking):
         game_time_selector,
         rink.draw()
     ])
-    return
+    return (display_data,)
 
 
 if __name__ == "__main__":

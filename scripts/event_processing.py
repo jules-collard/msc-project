@@ -4,6 +4,8 @@ import polars as pl
 from polars import col as c
 from polars import selectors as cs
 
+from tracking_processing import adjust_vectors
+
 def explode_events(events: pl.DataFrame | pl.LazyFrame) -> pl.DataFrame | pl.LazyFrame:
     """
     Function to lengthen event data for joining with tracking data.
@@ -129,7 +131,7 @@ def join_tracking(
     exploded_events = (
         events
         .sort(c('game_time'))
-        .with_columns(flip = (c('x_coord') != c('x_adj_coord')) | (c('y_coord') != c('y_adj_coord')))
+        .pipe(add_flip)
         .pipe(explode_events)
         .with_columns(
             c('onice_player_ref').replace_strict(mapping), 
@@ -150,9 +152,5 @@ def join_tracking(
             by_right='entity_official_id',
             tolerance=0.15,
             check_sortedness=False
-        ).with_columns(pl.when(c('flip')).then(
-            -c('x', 'y', 'z', 'vx', 'vy', 'vz', 'ax', 'ay', 'az')
-        ).otherwise(
-            c('x', 'y', 'z', 'vx', 'vy', 'vz', 'ax', 'ay', 'az')
-        ))
+        ).pipe(adjust_vectors)
     )
