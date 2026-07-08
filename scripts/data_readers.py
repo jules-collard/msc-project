@@ -15,7 +15,10 @@ def read_events(path: str, lazy=True) -> pl.DataFrame | pl.LazyFrame:
     with open(path, "r") as f:
         events_dict = json.load(f)
     
-    df = pl.from_dicts(events_dict.get("events"), infer_schema_length=None)
+    df = (
+        pl.from_dicts(events_dict.get("events"), infer_schema_length=None)
+        .with_columns(-c('y_coord', 'y_adj_coord')) # Event data y is flipped w.r.t. tracking data
+    )
     return df.lazy() if lazy else df
 
 def read_entity_registration(path: str, lazy=True, clean=True) -> pl.DataFrame | pl.LazyFrame:

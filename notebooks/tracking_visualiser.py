@@ -42,9 +42,7 @@ def _(player_tracking, puck_tracking):
 def _(events):
     events_viz = (
         events
-        .pipe(add_pass_target)
         .pipe(remove_non_viz_events)
-        .pipe(add_carry_info)
     )
     return (events_viz,)
 
@@ -99,6 +97,12 @@ def _():
     period_selector = mo.ui.number(start=1, stop=3, step=1)
     time_selector = mo.ui.number(start=0, stop=1200, step=0.1)
     return period_selector, time_selector
+
+
+@app.cell
+def _(current_event):
+    current_event
+    return
 
 
 @app.cell
@@ -157,14 +161,6 @@ def _(current_event, period_selector, time_selector, tracking_at_time):
             marker='x'
         )
         plt.title(f"{current_event['name']} - {current_event['shorthand']}: {current_event['outcome']} ({current_event['flags']})")
-        # if current_event['name'] == 'pass':
-        #     rink.wavy_arrow(
-        #         x=current_event['x_coord'],
-        #         y=current_event['y_coord'],
-        #         x2=current_event['pass_target_x_coord'], 
-        #         y2=current_event['pass_target_y_coord'],
-        #         zorder=5
-        #     )
 
     mo.vstack([
         mo.hstack([period_selector, time_selector], justify='start'),
