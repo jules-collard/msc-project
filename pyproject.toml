@@ -17,3 +17,8 @@ dependencies = [
 
 [tool.marimo.runtime]
 pythonpath = ["scripts"]
+
+[dependency-groups]
+dev = [
+    "pydantic-ai>=2.8.0",
+]
