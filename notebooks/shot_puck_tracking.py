@@ -54,10 +54,10 @@ def _(puck_tracking, shots):
 
 
 @app.cell
-def _(shots):
+def _(shots, tracking_with_shots):
     max_id = shots.select(c('shot_id').max()).collect().item()
 
-    id_selector = mo.ui.number(start=0, stop=max_id, step=1)
+    id_selector = mo.ui.dropdown.from_series(tracking_with_shots.select(c('shot_id').unique()).to_series(), allow_select_none=False, label="Select Shot ID", value=0)
     return (id_selector,)
 
 
@@ -72,65 +72,43 @@ def _(id_selector, shots, tracking_with_shots):
 def _(sample):
     shot_logic = (
         sample
+        .sort(c('shot_id', 'game_time'))
         .with_columns(
-            valid_shot_frame = (
-                (c('dist_to_shot') <= 10)
-                & (c('angle_to_goal').abs() <= 90)
-                & (c('goal_speed') > 0)
-            ),
+            valid_shot_frame = (c('dist_to_shot') <= 10) 
+            & (c('angle_to_goal').abs() <= 90)
+            & (c('goal_speed') > 0)
+        ).with_columns(
+            masked_acceleration = pl.when(c('valid_shot_frame')).then(c('goal_acceleration')).otherwise(None)
+        ).with_columns(
+            pl.int_range(pl.len()).over(c('shot_id')).alias('frame_index')
+        ).with_columns( # Identify frame where shot occurs
+            shot_frame = c('masked_acceleration').arg_max().over(c('shot_id')),
+        ).with_columns(
+            masked_speed = pl.when(c('frame_index') >= c('shot_frame')).then(c('speed')).otherwise(None)
+        ).with_columns( # Identify frame where max shot speed occurs
+            speed_frame = c('masked_speed').arg_max().over(c('shot_id'))
         ).group_by(c('shot_id'))
         .agg(
-            # Find the game_time of the frame with the maximum goal_acceleration among valid shot frames
-            c('game_time').filter(
-                c('goal_acceleration') == c('goal_acceleration').filter(c('valid_shot_frame')).max()
-            ).first().alias('shot_time'),
-            # Find max speed of puck among valid shot frames AFTER shot_time
-            c('speed').filter(
-                c('valid_shot_frame'),
-                c('game_time') >= c('game_time').filter(
-                    c('goal_acceleration') == c('goal_acceleration').filter(c('valid_shot_frame')).max()
-                )
-            ).max().alias('shot_speed'),
+            c('game_time').filter(c('frame_index') == c('shot_frame')).first().alias('shot_time'),
+            c('speed').filter(c('frame_index') == c('speed_frame')).first().alias('shot_speed'),
+            c('game_time').filter(c('frame_index') == c('speed_frame')).first().alias('speed_time'),
         )
     )
 
     shot_time = shot_logic.select(c('shot_time')).item()
     shot_speed = shot_logic.select(c('shot_speed')).item()
-    return shot_speed, shot_time
+    speed_time = shot_logic.select(c('speed_time')).item()
+    return shot_logic, shot_speed, shot_time, speed_time
 
 
 @app.cell
-def _():
-    # (
-    #     sample
-    #     .filter(
-    #         (c('dist_to_shot') <= 10),
-    #         (c('angle_to_goal').abs() <= 90),
-    #         (c('goal_speed') > 0),
-    #     ).with_columns(
-    #         pl.int_range(pl.len()).over(c('shot_id')).alias('frame_index')
-    #     ).with_columns(
-    #         shot_frame = c('goal_acceleration').arg_max().over(c('shot_id')),
-    #         speed_frame = pl.when(c('game_time'))
-    #     ).select(
-    #         c('frame_index'),
-    #         c('game_time'),
-    #         c('x_adj'),
-    #         c('y_adj'),
-    #         c('speed'),
-    #         c('acceleration'),
-    #         c('angle_to_goal'),
-    #         c('goal_speed'),
-    #         c('goal_acceleration'),
-    #         c('dist_to_shot'),
-    #         c('shot_frame')
-    #     )
-    # )
+def _(shot_logic):
+    shot_logic
     return
 
 
 @app.cell
-def _(game_time, id_selector, sample, shot_speed, shot_time):
+def _(game_time, id_selector, sample, shot_speed, shot_time, speed_time):
     custom_theme = (
         p9.theme_bw()
         + p9.theme(
@@ -144,7 +122,7 @@ def _(game_time, id_selector, sample, shot_speed, shot_time):
         + geom_line(aes(x='game_time', y='speed'))
         + geom_vline(xintercept=game_time, color='red')
         + geom_vline(xintercept=shot_time, linetype='dashed', color='blue')
-        + geom_hline(yintercept=shot_speed, linetype='dotted', color='blue')
+        + p9.geom_point(aes(x=speed_time, y=shot_speed), color='blue', size=3)
         + custom_theme
     )
 
@@ -153,6 +131,7 @@ def _(game_time, id_selector, sample, shot_speed, shot_time):
         + geom_line(aes(x='game_time', y='goal_speed'))
         + geom_vline(xintercept=game_time, color='red')
         + geom_vline(xintercept=shot_time, linetype='dashed', color='blue')
+        + geom_vline(xintercept=speed_time, linetype='dotted', color='blue')
         + custom_theme
     )
 
@@ -161,6 +140,7 @@ def _(game_time, id_selector, sample, shot_speed, shot_time):
         + geom_line(aes(x='game_time', y='acceleration'))
         + geom_vline(xintercept=game_time, color='red')
         + geom_vline(xintercept=shot_time, linetype='dashed', color='blue')
+        + geom_vline(xintercept=speed_time, linetype='dotted', color='blue')
         + custom_theme
     )
 
@@ -169,7 +149,8 @@ def _(game_time, id_selector, sample, shot_speed, shot_time):
         + geom_line(aes(x='game_time', y='goal_acceleration'))
         + geom_vline(xintercept=game_time, color='red')
         + geom_vline(xintercept=shot_time, linetype='dashed', color='blue')
-        + p9.geom_hline(yintercept=0, color='grey')
+        + geom_vline(xintercept=speed_time, linetype='dotted', color='blue')
+        + geom_hline(yintercept=0, color='grey')
         + custom_theme
     )
 
@@ -178,6 +159,7 @@ def _(game_time, id_selector, sample, shot_speed, shot_time):
         + geom_line(aes(x='game_time', y='angle_to_goal'))
         + geom_vline(xintercept=game_time, color='red')
         + geom_vline(xintercept=shot_time, linetype='dashed', color='blue')
+        + geom_vline(xintercept=speed_time, linetype='dotted', color='blue')
         + p9.scale_y_continuous(limits=(-180, 180), breaks=[-180, -90, 0, 90, 180])
         + custom_theme
     )
@@ -187,6 +169,7 @@ def _(game_time, id_selector, sample, shot_speed, shot_time):
         + geom_line(aes(x='game_time', y='dist_to_shot'))
         + geom_vline(xintercept=game_time, color='red')
         + geom_vline(xintercept=shot_time, linetype='dashed', color='blue')
+        + geom_vline(xintercept=speed_time, linetype='dotted', color='blue')
         + p9.ylim(0, None)
         + custom_theme
     )
