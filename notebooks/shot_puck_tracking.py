@@ -8,7 +8,7 @@ with app.setup:
     import polars as pl
     from polars import col as c
     import plotnine as p9
-    from plotnine import ggplot, aes, geom_line, geom_vline
+    from plotnine import ggplot, aes, geom_line, geom_vline, geom_hline
 
     from data_readers import read_events, read_puck_tracking
     from tracking_processing import derive_game_clock, adjust_vectors, calculate_goal_vectors, calculate_magnitudes
@@ -69,13 +69,68 @@ def _(id_selector, shots, tracking_with_shots):
 
 
 @app.cell
-def _(shots):
-    shots.collect()
+def _(sample):
+    shot_logic = (
+        sample
+        .with_columns(
+            valid_shot_frame = (
+                (c('dist_to_shot') <= 10)
+                & (c('angle_to_goal').abs() <= 90)
+                & (c('goal_speed') > 0)
+            ),
+        ).group_by(c('shot_id'))
+        .agg(
+            # Find the game_time of the frame with the maximum goal_acceleration among valid shot frames
+            c('game_time').filter(
+                c('goal_acceleration') == c('goal_acceleration').filter(c('valid_shot_frame')).max()
+            ).first().alias('shot_time'),
+            # Find max speed of puck among valid shot frames AFTER shot_time
+            c('speed').filter(
+                c('valid_shot_frame'),
+                c('game_time') >= c('game_time').filter(
+                    c('goal_acceleration') == c('goal_acceleration').filter(c('valid_shot_frame')).max()
+                )
+            ).max().alias('shot_speed'),
+        )
+    )
+
+    shot_time = shot_logic.select(c('shot_time')).item()
+    shot_speed = shot_logic.select(c('shot_speed')).item()
+    return shot_speed, shot_time
+
+
+@app.cell
+def _():
+    # (
+    #     sample
+    #     .filter(
+    #         (c('dist_to_shot') <= 10),
+    #         (c('angle_to_goal').abs() <= 90),
+    #         (c('goal_speed') > 0),
+    #     ).with_columns(
+    #         pl.int_range(pl.len()).over(c('shot_id')).alias('frame_index')
+    #     ).with_columns(
+    #         shot_frame = c('goal_acceleration').arg_max().over(c('shot_id')),
+    #         speed_frame = pl.when(c('game_time'))
+    #     ).select(
+    #         c('frame_index'),
+    #         c('game_time'),
+    #         c('x_adj'),
+    #         c('y_adj'),
+    #         c('speed'),
+    #         c('acceleration'),
+    #         c('angle_to_goal'),
+    #         c('goal_speed'),
+    #         c('goal_acceleration'),
+    #         c('dist_to_shot'),
+    #         c('shot_frame')
+    #     )
+    # )
     return
 
 
 @app.cell
-def _(game_time, id_selector, sample):
+def _(game_time, id_selector, sample, shot_speed, shot_time):
     custom_theme = (
         p9.theme_bw()
         + p9.theme(
@@ -87,28 +142,33 @@ def _(game_time, id_selector, sample):
     speed_plot = (
         ggplot(sample)
         + geom_line(aes(x='game_time', y='speed'))
-        + geom_vline(xintercept=game_time, linetype='dashed', color='red')
+        + geom_vline(xintercept=game_time, color='red')
+        + geom_vline(xintercept=shot_time, linetype='dashed', color='blue')
+        + geom_hline(yintercept=shot_speed, linetype='dotted', color='blue')
         + custom_theme
     )
 
     goal_speed_plot = (
         ggplot(sample)
         + geom_line(aes(x='game_time', y='goal_speed'))
-        + geom_vline(xintercept=game_time, linetype='dashed', color='red')
+        + geom_vline(xintercept=game_time, color='red')
+        + geom_vline(xintercept=shot_time, linetype='dashed', color='blue')
         + custom_theme
     )
 
     acc_plot = (
         ggplot(sample)
         + geom_line(aes(x='game_time', y='acceleration'))
-        + geom_vline(xintercept=game_time, linetype='dashed', color='red')
+        + geom_vline(xintercept=game_time, color='red')
+        + geom_vline(xintercept=shot_time, linetype='dashed', color='blue')
         + custom_theme
     )
 
     goal_acc_plot = (
         ggplot(sample)
         + geom_line(aes(x='game_time', y='goal_acceleration'))
-        + geom_vline(xintercept=game_time, linetype='dashed', color='red')
+        + geom_vline(xintercept=game_time, color='red')
+        + geom_vline(xintercept=shot_time, linetype='dashed', color='blue')
         + p9.geom_hline(yintercept=0, color='grey')
         + custom_theme
     )
@@ -116,17 +176,19 @@ def _(game_time, id_selector, sample):
     angle_plot = (
         ggplot(sample)
         + geom_line(aes(x='game_time', y='angle_to_goal'))
-        + geom_vline(xintercept=game_time, linetype='dashed', color='red')
-        + custom_theme
+        + geom_vline(xintercept=game_time, color='red')
+        + geom_vline(xintercept=shot_time, linetype='dashed', color='blue')
         + p9.scale_y_continuous(limits=(-180, 180), breaks=[-180, -90, 0, 90, 180])
+        + custom_theme
     )
 
     distance_plot = (
         ggplot(sample)
         + geom_line(aes(x='game_time', y='dist_to_shot'))
-        + geom_vline(xintercept=game_time, linetype='dashed', color='red')
-        + custom_theme
+        + geom_vline(xintercept=game_time, color='red')
+        + geom_vline(xintercept=shot_time, linetype='dashed', color='blue')
         + p9.ylim(0, None)
+        + custom_theme
     )
 
 
