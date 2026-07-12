@@ -34,7 +34,7 @@ def _():
 
 @app.cell
 def _(player_tracking, puck_tracking):
-    tracking = pl.concat([player_tracking, puck_tracking], how='diagonal_relaxed').pipe(derive_game_clock).collect()
+    tracking = pl.concat([player_tracking, puck_tracking], how='diagonal_relaxed').pipe(derive_game_clock).filter(c('clock_state') == 1).sort(c('game_time')).collect()
     return (tracking,)
 
 
@@ -100,12 +100,6 @@ def _():
 
 
 @app.cell
-def _(current_event):
-    current_event
-    return
-
-
-@app.cell
 def _(current_event, period_selector, time_selector, tracking_at_time):
     display_tracking = tracking_at_time.filter(
         c('entity_id') != '1',
@@ -146,8 +140,8 @@ def _(current_event, period_selector, time_selector, tracking_at_time):
     )
 
     rink.scatter(
-        x=puck_display_tracking.select(c('raw_x')),
-        y=puck_display_tracking.select(c('raw_y')),
+        x=puck_display_tracking.select(c('x')),
+        y=puck_display_tracking.select(c('y')),
         s=100, 
         c='black'
     )
