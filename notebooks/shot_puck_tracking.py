@@ -10,6 +10,7 @@ with app.setup:
     import plotnine as p9
     from plotnine import ggplot, aes, geom_line, geom_vline, geom_hline
     from hockey_rink import NHLRink
+    from matplotlib import pyplot as plt
 
     from data_readers import read_events, read_puck_tracking, read_entity_tracking
     from tracking_processing import derive_game_clock, adjust_vectors, calculate_goal_vectors, calculate_magnitudes
@@ -54,7 +55,7 @@ def _(puck_tracking, shots):
             shots,
             on='game_time',
             strategy='nearest',
-            tolerance=0.5,
+            tolerance=0.8,
         ).drop_nulls(c('shot_id'))
         .pipe(adjust_vectors)
         .pipe(calculate_goal_vectors)
@@ -105,13 +106,17 @@ def _(sample):
             c('game_time').filter(c('frame_index') == c('shot_frame')).first().alias('shot_time'),
             c('speed').filter(c('frame_index') == c('speed_frame')).first().alias('shot_speed'),
             c('game_time').filter(c('frame_index') == c('speed_frame')).first().alias('speed_time'),
+            c('x_adj').filter(c('frame_index') == c('shot_frame')).first().alias('shot_x'),
+            c('y_adj').filter(c('frame_index') == c('shot_frame')).first().alias('shot_y'),
+            c('x_adj').filter(c('frame_index') == c('speed_frame')).first().alias('speed_x'),
+            c('y_adj').filter(c('frame_index') == c('speed_frame')).first().alias('speed_y')
         )
     )
 
     shot_time = shot_logic.select(c('shot_time')).item()
     shot_speed = shot_logic.select(c('shot_speed')).item()
     speed_time = shot_logic.select(c('speed_time')).item()
-    return shot_speed, shot_time, speed_time
+    return shot_logic, shot_speed, shot_time, speed_time
 
 
 @app.cell
@@ -174,23 +179,23 @@ def _(game_time, sample, shot_speed, shot_time, speed_time):
     if logic_exists:
         shot_time_marker = geom_vline(xintercept=shot_time, linetype='dashed', color='blue')
         shot_speed_marker = geom_vline(xintercept=speed_time, linetype='dotted', color='blue')
-    
+
         speed_plot += shot_time_marker
         speed_plot += shot_speed_marker
         speed_plot += p9.geom_point(aes(x=speed_time, y=shot_speed), color='blue', size=3)
-    
+
         goal_speed_plot += shot_time_marker
         goal_speed_plot += shot_speed_marker
-    
+
         acc_plot += shot_time_marker
         acc_plot += shot_speed_marker
-    
+
         goal_acc_plot += shot_time_marker
         goal_acc_plot += shot_speed_marker
-    
+
         angle_plot += shot_time_marker
         angle_plot += shot_speed_marker
-    
+
         distance_plot += shot_time_marker
         distance_plot += shot_speed_marker
     return (
@@ -204,17 +209,54 @@ def _(game_time, sample, shot_speed, shot_time, speed_time):
 
 
 @app.cell
+def _(sample, shot_logic):
+    fig, ax = plt.subplots(figsize=(8, 4))
+
+    rink = NHLRink()
+
+    rink.scatter(
+        sample.select(c('x_adj')),
+        sample.select(c('y_adj')),
+        s=10,
+        alpha=0.5,
+        draw_kw={'display_range': 'ozone', 'rotation': 90}
+    )
+
+    rink.scatter(
+        shot_logic.select(c('shot_x')),
+        shot_logic.select(c('shot_y')),
+        s=50,
+        c='black',
+        draw_kw={'display_range': 'ozone', 'rotation': 90}
+    )
+
+    rink.scatter(
+        shot_logic.select(c('speed_x')),
+        shot_logic.select(c('speed_y')),
+        s=50,
+        c='black',
+        marker='x',
+        draw_kw={'display_range': 'ozone', 'rotation': 90}
+    )
+
+    None
+    return ax, rink
+
+
+@app.cell
 def _(
     acc_plot,
     angle_plot,
+    ax,
     distance_plot,
     goal_acc_plot,
     goal_speed_plot,
     id_selector,
+    rink,
     speed_plot,
 ):
     mo.vstack([
-        id_selector,
+        mo.hstack([id_selector, rink.draw(ax=ax, display_range="ozone", rotation=90)]),
         (speed_plot | acc_plot | angle_plot) / (goal_speed_plot | goal_acc_plot | distance_plot)
     ])
     return
