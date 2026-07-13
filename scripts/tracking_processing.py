@@ -31,7 +31,7 @@ def convert_timestamps(tracking: pl.DataFrame | pl.LazyFrame) -> pl.DataFrame | 
 
 def adjust_vectors(tracking: pl.DataFrame | pl.LazyFrame) -> pl.DataFrame | pl.LazyFrame:
     """
-    Adds adj_... columns to tracking locations, velocities and accelerations to correct"
+    Adds adj_... columns to tracking locations, velocities and accelerations to correct
     for attacking direction.
     """
 

@@ -16,8 +16,7 @@ with app.setup:
     from data_readers import read_events, read_puck_tracking, read_entity_tracking
     from tracking_processing import derive_game_clock, adjust_vectors, calculate_goal_vectors, calculate_magnitudes
     from event_processing import add_flip
-
-    from utils import distance_2d, project_to_goalline
+    from features.puck import calculate_shot_features
 
 
 @app.cell
@@ -49,83 +48,38 @@ def _():
 
 
 @app.cell
-def _(puck_tracking, shots):
+def _(distance_2d, puck_tracking, shots):
+    WINDOW_SIZE = 1.6
+
+    shot_info = calculate_shot_features(shots, puck_tracking, WINDOW_SIZE).collect()
+
     tracking_with_shots = (
-        puck_tracking
+        puck_tracking.sort(c('game_time'))
         .join_asof(
-            shots,
+            shots.sort(c('game_time')),
             on='game_time',
             strategy='nearest',
-            tolerance=0.8,
+            tolerance=WINDOW_SIZE,
             coalesce=False
         ).drop_nulls(c('shot_id'))
         .pipe(adjust_vectors)
+        .collect()
         .pipe(calculate_goal_vectors)
         .pipe(calculate_magnitudes)
         .with_columns(
             dist_to_shot = distance_2d('x_adj', 'y_adj', 'x_adj_coord', 'y_adj_coord').alias('dist_to_shot')
         ).with_columns(
             angle_acc = c('angle_to_goal').diff().over(c('shot_id'))
-        ).collect()
-    )
-    return (tracking_with_shots,)
-
-
-@app.cell
-def _(tracking_with_shots):
-    shot_info = (
-        tracking_with_shots
-        .sort(c('shot_id', 'game_time'))
-        .with_columns(
-            valid_shot_frame = (c('dist_to_shot') <= 10) 
-            & (c('angle_to_goal').abs() <= 90)
-            & (c('goal_speed') > 0)
-        ).with_columns(
-            masked_acceleration = pl.when(c('valid_shot_frame')).then(c('acceleration')).otherwise(None)
-        ).with_columns(
-            pl.int_range(pl.len()).over(c('shot_id')).alias('frame_index')
-        ).with_columns( # Identify frame where shot occurs
-            shot_frame = c('masked_acceleration').arg_max().over(c('shot_id')),
-        ).with_columns(
-            impact_condition = (c('goal_acceleration') < -500),
-            deflection_condition = (c('angle_acc').abs() > 30),
-            goal_line_condition = ((c('x_adj') >= 89) & (c('x_adj_coord') < 89)) | ((c('x_adj') < 89) & (c('x_adj_coord') >= 89))
-        ).with_columns(
-            stop = ((c('frame_index') > c('shot_frame')) & pl.any_horizontal(cs.ends_with('condition'))).over(c('shot_id'))
-        ).with_columns(
-            c('stop').arg_true().first().over(c('shot_id')).alias('stop_frame')
-        ).with_columns(
-            masked_speed = pl.when(
-                # Only consider speed within window and valid shot frames
-                c('valid_shot_frame'),
-                c('frame_index') >= c('shot_frame'),
-                c('frame_index') <= c('stop_frame')
-            ).then(c('speed')).otherwise(None),
-        ).with_columns( # Identify frame where max shot speed occurs
-            speed_frame = c('masked_speed').arg_max().over(c('shot_id')),
-        ).group_by(c('shot_id'))
-        .agg(
-            c('game_time').filter(c('frame_index') == c('shot_frame')).first().alias('shot_time'),
-            c('game_time').filter(c('frame_index') < c('stop_frame')).last().alias('shot_end_time'),
-            c('game_time_right').filter(c('frame_index') == c('shot_frame')).first().alias('event_time'),
-            c('speed').filter(c('frame_index') == c('speed_frame')).first().alias('shot_speed'),
-            c('x_adj').filter(c('frame_index') == c('shot_frame')).first().alias('shot_x'),
-            c('y_adj').filter(c('frame_index') == c('shot_frame')).first().alias('shot_y'),
-            c('game_time').filter(c('frame_index') == c('stop_frame')).first().alias('traj_time'),
-            c('x_adj').filter(c('frame_index') == c('stop_frame')).first().alias('traj_x'),
-            c('y_adj').filter(c('frame_index') == c('stop_frame')).first().alias('traj_y')
-        ).with_columns(
-            project_to_goalline('shot_x', 'shot_y', 'traj_x', 'traj_y')
         )
     )
-    return (shot_info,)
+    return shot_info, tracking_with_shots
 
 
 @app.cell
-def _(shots, tracking_with_shots):
+def _(shot_info, shots):
     max_id = shots.select(c('shot_id').max()).collect().item()
 
-    id_selector = mo.ui.dropdown.from_series(tracking_with_shots.select(c('shot_id').unique()).to_series(), allow_select_none=False, label="Select Shot ID", value=0)
+    id_selector = mo.ui.dropdown.from_series(shot_info.select(c('shot_id').unique()).to_series(), allow_select_none=False, label="Select Shot ID", value=0)
     return (id_selector,)
 
 
@@ -314,6 +268,18 @@ def _(
         mo.hstack([id_selector, rink.draw(ax=ax, display_range="ozone", rotation=90)]),
         (speed_plot | acc_plot | angle_plot) / (goal_speed_plot | goal_acc_plot | angle_acc_plot)
     ])
+    return
+
+
+@app.cell
+def _(shot_info):
+    (
+        shot_info.select(c('event_time') - c('shot_time'))
+        >> ggplot(aes(x='event_time'))
+        + p9.geom_histogram(color='black', fill='lightblue', binwidth=0.05)
+        + geom_vline(xintercept=0, color='red')
+        + p9.theme_bw()
+    )
     return
 
 
