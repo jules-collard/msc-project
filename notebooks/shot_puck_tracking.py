@@ -16,7 +16,7 @@ with app.setup:
     from tracking_processing import derive_game_clock, adjust_vectors, calculate_goal_vectors, calculate_magnitudes
     from event_processing import add_flip
 
-    from utils import distance_2d
+    from utils import distance_2d, project_to_goalline
 
 
 @app.cell
@@ -98,9 +98,17 @@ def _(sample):
         ).with_columns( # Identify frame where shot occurs
             shot_frame = c('masked_acceleration').arg_max().over(c('shot_id')),
         ).with_columns(
-            masked_speed = pl.when(c('frame_index') >= c('shot_frame')).then(c('speed')).otherwise(None)
+            masked_speed = pl.when(
+                c('frame_index') > c('shot_frame'),
+                c('frame_index') <= c('shot_frame') + 30
+            ).then(c('speed')).otherwise(None),
+            masked_trajectory = pl.when(
+                c('frame_index') >= c('shot_frame') + 4,
+                c('frame_index') <= c('shot_frame') + 30
+            ).then(c('speed')).otherwise(None)
         ).with_columns( # Identify frame where max shot speed occurs
-            speed_frame = c('masked_speed').arg_max().over(c('shot_id'))
+            speed_frame = c('masked_speed').arg_max().over(c('shot_id')),
+            trajectory_frame = c('shot_frame') + 5
         ).group_by(c('shot_id'))
         .agg(
             c('game_time').filter(c('frame_index') == c('shot_frame')).first().alias('shot_time'),
@@ -108,8 +116,10 @@ def _(sample):
             c('game_time').filter(c('frame_index') == c('speed_frame')).first().alias('speed_time'),
             c('x_adj').filter(c('frame_index') == c('shot_frame')).first().alias('shot_x'),
             c('y_adj').filter(c('frame_index') == c('shot_frame')).first().alias('shot_y'),
-            c('x_adj').filter(c('frame_index') == c('speed_frame')).first().alias('speed_x'),
-            c('y_adj').filter(c('frame_index') == c('speed_frame')).first().alias('speed_y')
+            c('x_adj').filter(c('frame_index') == c('trajectory_frame')).first().alias('traj_x'),
+            c('y_adj').filter(c('frame_index') == c('trajectory_frame')).first().alias('traj_y')
+        ).with_columns(
+            project_to_goalline('shot_x', 'shot_y', 'traj_x', 'traj_y')
         )
     )
 
@@ -219,6 +229,7 @@ def _(sample, shot_logic):
         sample.select(c('y_adj')),
         s=10,
         alpha=0.5,
+        c='gray',
         draw_kw={'display_range': 'ozone', 'rotation': 90}
     )
 
@@ -226,18 +237,38 @@ def _(sample, shot_logic):
         shot_logic.select(c('shot_x')),
         shot_logic.select(c('shot_y')),
         s=50,
-        c='black',
+        c='blue',
         draw_kw={'display_range': 'ozone', 'rotation': 90}
     )
 
     rink.scatter(
-        shot_logic.select(c('speed_x')),
-        shot_logic.select(c('speed_y')),
+        shot_logic.select(c('traj_x')),
+        shot_logic.select(c('traj_y')),
         s=50,
-        c='black',
+        c='blue',
         marker='x',
         draw_kw={'display_range': 'ozone', 'rotation': 90}
     )
+
+    rink.scatter(
+        sample.select(c('x_adj_coord').first()),
+        sample.select(c('y_adj_coord').first()),
+        s=50,
+        c='red',
+        draw_kw={'display_range': 'ozone', 'rotation': 90}
+    )
+
+    if shot_logic.select(c('goalline_y').is_null().not_()).item():
+        rink.arrow(
+            shot_logic.select(c('shot_x')).item(),
+            shot_logic.select(c('shot_y')).item(),
+            shot_logic.select(89 - c('shot_x')).item(),
+            shot_logic.select(c('goalline_y') - c('shot_y')).item(),
+            color='blue',
+            width=0.005,
+            head_width=0.5,
+            draw_kw={'display_range': 'ozone', 'rotation': 90}
+        )
 
     None
     return ax, rink
