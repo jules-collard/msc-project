@@ -7,6 +7,7 @@ with app.setup:
     import marimo as mo
     import polars as pl
     from polars import col as c
+    from polars import selectors as cs
     import plotnine as p9
     from plotnine import ggplot, aes, geom_line, geom_vline, geom_hline
     from hockey_rink import NHLRink
@@ -56,15 +57,68 @@ def _(puck_tracking, shots):
             on='game_time',
             strategy='nearest',
             tolerance=0.8,
+            coalesce=False
         ).drop_nulls(c('shot_id'))
         .pipe(adjust_vectors)
         .pipe(calculate_goal_vectors)
         .pipe(calculate_magnitudes)
         .with_columns(
             dist_to_shot = distance_2d('x_adj', 'y_adj', 'x_adj_coord', 'y_adj_coord').alias('dist_to_shot')
+        ).with_columns(
+            angle_acc = c('angle_to_goal').diff().over(c('shot_id'))
         ).collect()
     )
     return (tracking_with_shots,)
+
+
+@app.cell
+def _(tracking_with_shots):
+    shot_info = (
+        tracking_with_shots
+        .sort(c('shot_id', 'game_time'))
+        .with_columns(
+            valid_shot_frame = (c('dist_to_shot') <= 10) 
+            & (c('angle_to_goal').abs() <= 90)
+            & (c('goal_speed') > 0)
+        ).with_columns(
+            masked_acceleration = pl.when(c('valid_shot_frame')).then(c('acceleration')).otherwise(None)
+        ).with_columns(
+            pl.int_range(pl.len()).over(c('shot_id')).alias('frame_index')
+        ).with_columns( # Identify frame where shot occurs
+            shot_frame = c('masked_acceleration').arg_max().over(c('shot_id')),
+        ).with_columns(
+            impact_condition = (c('goal_acceleration') < -500),
+            deflection_condition = (c('angle_acc').abs() > 30),
+            goal_line_condition = ((c('x_adj') >= 89) & (c('x_adj_coord') < 89)) | ((c('x_adj') < 89) & (c('x_adj_coord') >= 89))
+        ).with_columns(
+            stop = ((c('frame_index') > c('shot_frame')) & pl.any_horizontal(cs.ends_with('condition'))).over(c('shot_id'))
+        ).with_columns(
+            c('stop').arg_true().first().over(c('shot_id')).alias('stop_frame')
+        ).with_columns(
+            masked_speed = pl.when(
+                # Only consider speed within window and valid shot frames
+                c('valid_shot_frame'),
+                c('frame_index') >= c('shot_frame'),
+                c('frame_index') <= c('stop_frame')
+            ).then(c('speed')).otherwise(None),
+        ).with_columns( # Identify frame where max shot speed occurs
+            speed_frame = c('masked_speed').arg_max().over(c('shot_id')),
+        ).group_by(c('shot_id'))
+        .agg(
+            c('game_time').filter(c('frame_index') == c('shot_frame')).first().alias('shot_time'),
+            c('game_time').filter(c('frame_index') < c('stop_frame')).last().alias('shot_end_time'),
+            c('game_time_right').filter(c('frame_index') == c('shot_frame')).first().alias('event_time'),
+            c('speed').filter(c('frame_index') == c('speed_frame')).first().alias('shot_speed'),
+            c('x_adj').filter(c('frame_index') == c('shot_frame')).first().alias('shot_x'),
+            c('y_adj').filter(c('frame_index') == c('shot_frame')).first().alias('shot_y'),
+            c('game_time').filter(c('frame_index') == c('stop_frame')).first().alias('traj_time'),
+            c('x_adj').filter(c('frame_index') == c('stop_frame')).first().alias('traj_x'),
+            c('y_adj').filter(c('frame_index') == c('stop_frame')).first().alias('traj_y')
+        ).with_columns(
+            project_to_goalline('shot_x', 'shot_y', 'traj_x', 'traj_y')
+        )
+    )
+    return (shot_info,)
 
 
 @app.cell
@@ -76,63 +130,30 @@ def _(shots, tracking_with_shots):
 
 
 @app.cell
-def _(id_selector, shots, tracking_with_shots):
+def _(id_selector, shot_info, shots, tracking_with_shots):
     sample = tracking_with_shots.filter(c('shot_id') == id_selector.value)
     game_time = shots.filter(c('shot_id') == id_selector.value).select(c('game_time')).collect().item()
-    return game_time, sample
-
-
-@app.cell
-def _(sample):
-    shot_logic = (
-        sample
-        .sort(c('shot_id', 'game_time'))
-        .with_columns(
-            valid_shot_frame = (c('dist_to_shot') <= 10) 
-            & (c('angle_to_goal').abs() <= 90)
-            & (c('goal_speed') > 0)
-        ).with_columns(
-            masked_acceleration = pl.when(c('valid_shot_frame')).then(c('goal_acceleration')).otherwise(None)
-        ).with_columns(
-            pl.int_range(pl.len()).over(c('shot_id')).alias('frame_index')
-        ).with_columns( # Identify frame where shot occurs
-            shot_frame = c('masked_acceleration').arg_max().over(c('shot_id')),
-        ).with_columns(
-            masked_speed = pl.when(
-                c('frame_index') > c('shot_frame'),
-                c('frame_index') <= c('shot_frame') + 30
-            ).then(c('speed')).otherwise(None),
-            masked_trajectory = pl.when(
-                c('frame_index') >= c('shot_frame') + 4,
-                c('frame_index') <= c('shot_frame') + 30
-            ).then(c('speed')).otherwise(None)
-        ).with_columns( # Identify frame where max shot speed occurs
-            speed_frame = c('masked_speed').arg_max().over(c('shot_id')),
-            trajectory_frame = c('shot_frame') + 5
-        ).group_by(c('shot_id'))
-        .agg(
-            c('game_time').filter(c('frame_index') == c('shot_frame')).first().alias('shot_time'),
-            c('speed').filter(c('frame_index') == c('speed_frame')).first().alias('shot_speed'),
-            c('game_time').filter(c('frame_index') == c('speed_frame')).first().alias('speed_time'),
-            c('x_adj').filter(c('frame_index') == c('shot_frame')).first().alias('shot_x'),
-            c('y_adj').filter(c('frame_index') == c('shot_frame')).first().alias('shot_y'),
-            c('x_adj').filter(c('frame_index') == c('trajectory_frame')).first().alias('traj_x'),
-            c('y_adj').filter(c('frame_index') == c('trajectory_frame')).first().alias('traj_y')
-        ).with_columns(
-            project_to_goalline('shot_x', 'shot_y', 'traj_x', 'traj_y')
-        )
-    )
+    shot_logic = shot_info.filter(c('shot_id') == id_selector.value)
 
     shot_time = shot_logic.select(c('shot_time')).item()
+    shot_end_time = shot_logic.select(c('shot_end_time')).item()
     shot_speed = shot_logic.select(c('shot_speed')).item()
-    speed_time = shot_logic.select(c('speed_time')).item()
-    return shot_logic, shot_speed, shot_time, speed_time
+    speed_time = shot_logic.select(c('traj_time')).item()
+    return (
+        game_time,
+        sample,
+        shot_end_time,
+        shot_logic,
+        shot_speed,
+        shot_time,
+        speed_time,
+    )
 
 
 @app.cell
-def _(game_time, sample, shot_speed, shot_time, speed_time):
+def _(game_time, sample, shot_end_time, shot_speed, shot_time, speed_time):
     custom_theme = (
-        p9.theme_bw()
+        p9.theme_bw(base_size=8)
         + p9.theme(
             axis_title_x=p9.element_blank(),
             axis_text_x=p9.element_text(angle=-90)
@@ -143,75 +164,79 @@ def _(game_time, sample, shot_speed, shot_time, speed_time):
 
     speed_plot = (
         ggplot(sample)
+        + p9.geom_rect(xmin=shot_time, xmax=shot_end_time, ymin=-float('Inf'), ymax=float('Inf'), alpha=0.01)
         + geom_line(aes(x='game_time', y='speed'))
         + geom_vline(xintercept=game_time, color='red')
+        + p9.labs(x='Game Time (s)', y='Speed (ft/s)')
         + custom_theme
     )
 
     goal_speed_plot = (
         ggplot(sample)
+        + p9.geom_rect(xmin=shot_time, xmax=shot_end_time, ymin=-float('Inf'), ymax=float('Inf'), alpha=0.01)
         + geom_line(aes(x='game_time', y='goal_speed'))
         + geom_vline(xintercept=game_time, color='red')
+        + p9.labs(x='Game Time (s)', y='Velocity Towards Goal (ft/s)')
         + custom_theme
     )
 
     acc_plot = (
         ggplot(sample)
+        + p9.geom_rect(xmin=shot_time, xmax=shot_end_time, ymin=-float('Inf'), ymax=float('Inf'), alpha=0.01)
         + geom_line(aes(x='game_time', y='acceleration'))
         + geom_vline(xintercept=game_time, color='red')
+        + p9.labs(x='Game Time (s)', y='Acceleration (ft/s²)')
         + custom_theme
     )
 
     goal_acc_plot = (
         ggplot(sample)
+        + p9.geom_rect(xmin=shot_time, xmax=shot_end_time, ymin=-float('Inf'), ymax=float('Inf'), alpha=0.01)
         + geom_line(aes(x='game_time', y='goal_acceleration'))
         + geom_vline(xintercept=game_time, color='red')
         + geom_hline(yintercept=0, color='grey')
+        + p9.labs(x='Game Time (s)', y='Acc. Towards Goal (ft/s²)')
         + custom_theme
     )
 
     angle_plot = (
         ggplot(sample)
+        + p9.geom_rect(xmin=shot_time, xmax=shot_end_time, ymin=-float('Inf'), ymax=float('Inf'), alpha=0.01)
         + geom_line(aes(x='game_time', y='angle_to_goal'))
         + geom_vline(xintercept=game_time, color='red')
         + p9.scale_y_continuous(limits=(-180, 180), breaks=[-180, -90, 0, 90, 180])
+        + p9.labs(x='Game Time (s)', y='Angle to Goal (degrees)')
         + custom_theme
     )
 
-    distance_plot = (
+    angle_acc_plot = (
         ggplot(sample)
-        + geom_line(aes(x='game_time', y='dist_to_shot'))
+        + p9.geom_rect(xmin=shot_time, xmax=shot_end_time, ymin=-float('Inf'), ymax=float('Inf'), alpha=0.01)
+        + geom_line(aes(x='game_time', y='angle_acc'))
         + geom_vline(xintercept=game_time, color='red')
-        + p9.ylim(0, None)
+        + p9.labs(x='Game Time (s)', y='Angular Acceleration (degrees/s)')
         + custom_theme
     )
 
     if logic_exists:
         shot_time_marker = geom_vline(xintercept=shot_time, linetype='dashed', color='blue')
-        shot_speed_marker = geom_vline(xintercept=speed_time, linetype='dotted', color='blue')
 
         speed_plot += shot_time_marker
-        speed_plot += shot_speed_marker
-        speed_plot += p9.geom_point(aes(x=speed_time, y=shot_speed), color='blue', size=3)
+        speed_plot += p9.geom_hline(aes(yintercept=shot_speed), color='blue', linetype='dotted')
 
         goal_speed_plot += shot_time_marker
-        goal_speed_plot += shot_speed_marker
 
         acc_plot += shot_time_marker
-        acc_plot += shot_speed_marker
 
         goal_acc_plot += shot_time_marker
-        goal_acc_plot += shot_speed_marker
 
         angle_plot += shot_time_marker
-        angle_plot += shot_speed_marker
 
-        distance_plot += shot_time_marker
-        distance_plot += shot_speed_marker
+        angle_acc_plot += shot_time_marker
     return (
         acc_plot,
+        angle_acc_plot,
         angle_plot,
-        distance_plot,
         goal_acc_plot,
         goal_speed_plot,
         speed_plot,
@@ -229,7 +254,6 @@ def _(sample, shot_logic):
         sample.select(c('y_adj')),
         s=10,
         alpha=0.5,
-        c='gray',
         draw_kw={'display_range': 'ozone', 'rotation': 90}
     )
 
@@ -277,9 +301,9 @@ def _(sample, shot_logic):
 @app.cell
 def _(
     acc_plot,
+    angle_acc_plot,
     angle_plot,
     ax,
-    distance_plot,
     goal_acc_plot,
     goal_speed_plot,
     id_selector,
@@ -288,7 +312,7 @@ def _(
 ):
     mo.vstack([
         mo.hstack([id_selector, rink.draw(ax=ax, display_range="ozone", rotation=90)]),
-        (speed_plot | acc_plot | angle_plot) / (goal_speed_plot | goal_acc_plot | distance_plot)
+        (speed_plot | acc_plot | angle_plot) / (goal_speed_plot | goal_acc_plot | angle_acc_plot)
     ])
     return
 
