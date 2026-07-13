@@ -3,7 +3,7 @@ from polars import col as c
 from polars import selectors as cs
 
 from tracking_processing import adjust_vectors
-from utils import distance_to_point_2d, magnitude_2d, distance_2d, project_y_to_goalline
+from utils import distance_to_point_2d, magnitude_2d, distance_2d, project_y_to_goalline, project_z_to_goalline
 
 def calculate_goal_vectors(tracking: pl.DataFrame | pl.LazyFrame) -> pl.DataFrame | pl.LazyFrame:
     GOAL_X = 89
@@ -120,6 +120,7 @@ def calculate_shot_features(
             c('y_adj').filter(c('frame_index') == c('stop_frame')).first().alias('traj_y'),
             c('z').filter(c('frame_index') == c('stop_frame')).first().alias('traj_z'),
         ).with_columns(
-            project_y_to_goalline('shot_x', 'shot_y', 'traj_x', 'traj_y')
+            project_y_to_goalline('shot_x', 'shot_y', 'traj_x', 'traj_y'),
+            project_z_to_goalline('shot_x', 'shot_z', 'shot_time', 'traj_x', 'traj_z', 'traj_time')
         )
     )

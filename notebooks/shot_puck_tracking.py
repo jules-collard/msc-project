@@ -17,6 +17,7 @@ with app.setup:
     from tracking_processing import derive_game_clock, adjust_vectors, calculate_goal_vectors, calculate_magnitudes
     from event_processing import add_flip
     from features.puck import calculate_shot_features
+    from utils import distance_2d
 
 
 @app.cell
@@ -48,7 +49,7 @@ def _():
 
 
 @app.cell
-def _(distance_2d, puck_tracking, shots):
+def _(puck_tracking, shots):
     WINDOW_SIZE = 1.6
 
     shot_info = calculate_shot_features(shots, puck_tracking, WINDOW_SIZE).collect()
@@ -191,6 +192,7 @@ def _(game_time, sample, shot_end_time, shot_speed, shot_time, speed_time):
         acc_plot,
         angle_acc_plot,
         angle_plot,
+        custom_theme,
         goal_acc_plot,
         goal_speed_plot,
         speed_plot,
@@ -253,6 +255,52 @@ def _(sample, shot_logic):
 
 
 @app.cell
+def _(custom_theme, shot_logic):
+    # 1. Define the NHL Net Outline (in feet)
+    # The path goes: Bottom-Left Post -> Top-Left -> Top-Right -> Bottom-Right
+    net_outline = pl.DataFrame({
+        'y': [-3, -3, 3, 3],
+        'z': [0, 4, 4, 0]
+    })
+
+    # 3. Build the Plotnine Graphic
+    shot_plot = (
+        ggplot()
+        + p9.coord_fixed(ratio=1, ylim=(0, 6))
+        + p9.scale_x_reverse(limits=(5,-5))  # Flip the x-axis to match hockey rink orientation
+        # Net
+        + p9.geom_rect(
+            aes(xmin=-3, xmax=3, ymin=0, ymax=4), fill='lightgrey',
+        )
+        # Ice Surface
+        + p9.geom_segment(
+            aes(x=-5, xend=5, y=0, yend=0), 
+            color="lightblue", size=2
+        ) 
+        # Posts
+        + p9.geom_path(
+            aes(x='y', y='z'), 
+            data=net_outline, 
+            color="red", size=2, lineend="round"
+        )   
+        # Shots
+        + p9.geom_point(
+            aes(x='goalline_y', y='goalline_z'), size=5,
+            data=shot_logic,
+        )
+        + custom_theme
+        + p9.theme(title=p9.element_blank(), axis_title=p9.element_blank())
+    )
+    return (shot_plot,)
+
+
+@app.cell
+def _(shots):
+    shots.collect()
+    return
+
+
+@app.cell
 def _(
     acc_plot,
     angle_acc_plot,
@@ -262,24 +310,14 @@ def _(
     goal_speed_plot,
     id_selector,
     rink,
+    shot_plot,
     speed_plot,
 ):
     mo.vstack([
-        mo.hstack([id_selector, rink.draw(ax=ax, display_range="ozone", rotation=90)]),
+        id_selector,
+        mo.hstack([shot_plot, rink.draw(ax=ax, display_range="ozone", rotation=90)], widths="equal"),
         (speed_plot | acc_plot | angle_plot) / (goal_speed_plot | goal_acc_plot | angle_acc_plot)
     ])
-    return
-
-
-@app.cell
-def _(shot_info):
-    (
-        shot_info.select(c('event_time') - c('shot_time'))
-        >> ggplot(aes(x='event_time'))
-        + p9.geom_histogram(color='black', fill='lightblue', binwidth=0.05)
-        + geom_vline(xintercept=0, color='red')
-        + p9.theme_bw()
-    )
     return
 
 

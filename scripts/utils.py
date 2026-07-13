@@ -61,7 +61,6 @@ def project_z_to_goalline(
         pl.when((delta_x > 0) & (dt > 0))
         .then(
             pl.max_horizontal(0.0, raw_z_goal)
-        )
-        .otherwise(None)
+        ).otherwise(None)
         .alias('goalline_z')
     )
