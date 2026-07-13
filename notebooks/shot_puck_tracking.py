@@ -105,7 +105,7 @@ def _(id_selector, shot_info, shots, tracking_with_shots):
     )
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(game_time, sample, shot_end_time, shot_speed, shot_time, speed_time):
     custom_theme = (
         p9.theme_bw(base_size=8)
@@ -199,7 +199,7 @@ def _(game_time, sample, shot_end_time, shot_speed, shot_time, speed_time):
     )
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(sample, shot_logic):
     fig, ax = plt.subplots(figsize=(8, 4))
 
@@ -254,7 +254,7 @@ def _(sample, shot_logic):
     return ax, rink
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(custom_theme, shot_logic):
     # 1. Define the NHL Net Outline (in feet)
     # The path goes: Bottom-Left Post -> Top-Left -> Top-Right -> Bottom-Right
@@ -292,12 +292,6 @@ def _(custom_theme, shot_logic):
         + p9.theme(title=p9.element_blank(), axis_title=p9.element_blank())
     )
     return (shot_plot,)
-
-
-@app.cell
-def _(shots):
-    shots.collect()
-    return
 
 
 @app.cell

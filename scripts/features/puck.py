@@ -115,10 +115,10 @@ def calculate_shot_features(
             c('x_adj').filter(c('frame_index') == c('shot_frame')).first().alias('shot_x'),
             c('y_adj').filter(c('frame_index') == c('shot_frame')).first().alias('shot_y'),
             c('z').filter(c('frame_index') == c('shot_frame')).first().alias('shot_z'),
-            c('game_time').filter(c('frame_index') == c('stop_frame')).first().alias('traj_time'),
-            c('x_adj').filter(c('frame_index') == c('stop_frame')).first().alias('traj_x'),
-            c('y_adj').filter(c('frame_index') == c('stop_frame')).first().alias('traj_y'),
-            c('z').filter(c('frame_index') == c('stop_frame')).first().alias('traj_z'),
+            c('game_time').filter(c('frame_index') < c('stop_frame')).last().alias('traj_time'),
+            c('x_adj').filter(c('frame_index') < c('stop_frame')).last().alias('traj_x'),
+            c('y_adj').filter(c('frame_index') < c('stop_frame')).last().alias('traj_y'),
+            c('z').filter(c('frame_index') < c('stop_frame')).last().alias('traj_z'),
         ).with_columns(
             project_y_to_goalline('shot_x', 'shot_y', 'traj_x', 'traj_y'),
             project_z_to_goalline('shot_x', 'shot_z', 'shot_time', 'traj_x', 'traj_z', 'traj_time')
