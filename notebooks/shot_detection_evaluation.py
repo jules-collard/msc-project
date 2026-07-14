@@ -14,7 +14,7 @@ with app.setup:
     from data_readers import read_events, read_entity_tracking, read_puck_tracking
     from tracking_processing import derive_game_clock
     from event_processing import add_flip
-    from features.puck import calculate_shot_features, evaluate_shot_detection
+    from features.puck import calculate_shot_detection, evaluate_shot_detection
     from utils import cohens_kappa
 
 
@@ -44,14 +44,14 @@ def _():
 
 @app.cell(hide_code=True)
 def _(acc_slider, angle_slider, distance_slider, puck_tracking, shots):
-    shot_features = calculate_shot_features(shots, puck_tracking, distance_threshold=distance_slider.value, impact_acceleration_threshold=acc_slider.value, deflection_angle_threshold=angle_slider.value)
+    shot_features = calculate_shot_detection(shots, puck_tracking, distance_threshold=distance_slider.value, impact_acceleration_threshold=acc_slider.value, deflection_angle_threshold=angle_slider.value)
     shots_with_features = shots.join(shot_features, on=c('shot_id'), how='left').collect()
     return (shots_with_features,)
 
 
 @app.cell
 def _():
-    distance_slider = mo.ui.slider(start=2, stop=15, step=1, value=10, debounce=True, include_input=True, label="Distance Threshold (ft)")
+    distance_slider = mo.ui.slider(start=2, stop=15, step=1, value=8, debounce=True, include_input=True, label="Distance Threshold (ft)")
     acc_slider = mo.ui.slider(start=-2000, stop=0, step=100, value=-800, debounce=True, include_input=True, label="Impact Acceleration Threshold (ft/s²)")
     angle_slider = mo.ui.slider(start=0, stop=100, step=5, value=25, debounce=True, include_input=True, label="Angular Velocity Threshold (degrees/s)")
     return acc_slider, angle_slider, distance_slider
@@ -86,7 +86,7 @@ def _(shots_with_features):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(shots_with_features):
     (
         shots_with_features

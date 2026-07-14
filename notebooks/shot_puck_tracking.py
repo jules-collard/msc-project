@@ -16,7 +16,7 @@ with app.setup:
     from data_readers import read_events, read_puck_tracking, read_entity_tracking
     from tracking_processing import derive_game_clock, adjust_vectors, calculate_goal_vectors, calculate_magnitudes
     from event_processing import add_flip
-    from features.puck import calculate_shot_features
+    from features.puck import calculate_shot_detection
     from utils import distance_2d
 
 
@@ -52,7 +52,7 @@ def _():
 def _(puck_tracking, shots):
     WINDOW_SIZE = 1.6
 
-    shot_info = calculate_shot_features(shots, puck_tracking, WINDOW_SIZE).collect()
+    shot_info = calculate_shot_detection(shots, puck_tracking, WINDOW_SIZE).collect()
 
     tracking_with_shots = (
         puck_tracking.sort(c('game_time'))
@@ -70,7 +70,7 @@ def _(puck_tracking, shots):
         .with_columns(
             dist_to_shot = distance_2d('x_adj', 'y_adj', 'x_adj_coord', 'y_adj_coord').alias('dist_to_shot')
         ).with_columns(
-            angle_acc = c('angle_to_goal').diff().over(c('shot_id'))
+            angle_vel = c('angle_to_goal').diff().over(c('shot_id'))
         )
     )
     return shot_info, tracking_with_shots
@@ -165,12 +165,12 @@ def _(game_time, sample, shot_end_time, shot_speed, shot_time, speed_time):
         + custom_theme
     )
 
-    angle_acc_plot = (
+    angle_vel_plot = (
         ggplot(sample)
         + p9.geom_rect(xmin=shot_time, xmax=shot_end_time, ymin=-float('Inf'), ymax=float('Inf'), alpha=0.01)
-        + geom_line(aes(x='game_time', y='angle_acc'))
+        + geom_line(aes(x='game_time', y='angle_vel'))
         + geom_vline(xintercept=game_time, color='red')
-        + p9.labs(x='Game Time (s)', y='Angular Acceleration (degrees/s)')
+        + p9.labs(x='Game Time (s)', y='Angular Velocity (degrees/s)')
         + custom_theme
     )
 
@@ -188,11 +188,11 @@ def _(game_time, sample, shot_end_time, shot_speed, shot_time, speed_time):
 
         angle_plot += shot_time_marker
 
-        angle_acc_plot += shot_time_marker
+        angle_vel_plot += shot_time_marker
     return (
         acc_plot,
-        angle_acc_plot,
         angle_plot,
+        angle_vel_plot,
         custom_theme,
         goal_acc_plot,
         goal_speed_plot,
@@ -298,8 +298,8 @@ def _(custom_theme, shot_logic):
 @app.cell
 def _(
     acc_plot,
-    angle_acc_plot,
     angle_plot,
+    angle_vel_plot,
     ax,
     goal_acc_plot,
     goal_speed_plot,
@@ -311,7 +311,7 @@ def _(
     mo.vstack([
         id_selector,
         mo.hstack([shot_plot, rink.draw(ax=ax, display_range="ozone", rotation=90)], widths="equal"),
-        (speed_plot | acc_plot | angle_plot) / (goal_speed_plot | goal_acc_plot | angle_acc_plot)
+        (speed_plot | acc_plot | angle_plot) / (goal_speed_plot | goal_acc_plot | angle_vel_plot)
     ])
     return
 

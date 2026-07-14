@@ -43,7 +43,7 @@ def calculate_magnitudes(tracking: pl.DataFrame | pl.LazyFrame) -> pl.DataFrame 
         )
     )
 
-def calculate_shot_features(
+def calculate_shot_detection(
         shots: pl.DataFrame | pl.LazyFrame,
         puck_tracking: pl.DataFrame | pl.LazyFrame,
         window_size: float = 1.6,
@@ -76,7 +76,7 @@ def calculate_shot_features(
         .with_columns(
             dist_to_shot = distance_2d('x_adj', 'y_adj', 'x_adj_coord', 'y_adj_coord').alias('dist_to_shot')
         ).with_columns(
-            angle_acc = c('angle_to_goal').diff().over(c('shot_id'))
+            angle_vel = c('angle_to_goal').diff().over(c('shot_id'))
         )
     )
 
@@ -95,7 +95,7 @@ def calculate_shot_features(
             shot_frame = c('masked_acceleration').arg_max().over(c('shot_id')),
         ).with_columns( # Conditions for stopping the shot trajectory
             impact_condition = (c('goal_acceleration') < impact_acceleration_threshold),
-            deflection_condition = (c('angle_acc').abs() > deflection_angle_threshold),
+            deflection_condition = (c('angle_vel').abs() > deflection_angle_threshold),
             goal_line_condition = ((c('x_adj') >= 89) & (c('x_adj_coord') < 89)) | ((c('x_adj') < 89) & (c('x_adj_coord') >= 89))
         ).with_columns(
             stop = ((c('frame_index') > c('shot_frame')) & pl.any_horizontal(cs.ends_with('condition'))).over(c('shot_id'))
