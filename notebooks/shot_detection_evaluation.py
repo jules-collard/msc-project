@@ -70,7 +70,7 @@ def _(acc_slider, angle_slider, distance_slider, metrics):
 
 @app.cell(hide_code=True)
 def _(shots_with_features):
-    (
+    timing_plot = (
         shots_with_features
         .with_columns(timing_error = c('game_time') - c('shot_time'))
         >> ggplot(aes(x='timing_error'))
@@ -81,12 +81,16 @@ def _(shots_with_features):
         + labs(x="Estimated Timing Error (seconds)", y="Density", title="Distribution of Estimated Timing Errors for Shots",
               caption="Timing Error = Event Time - Estimated Shot Time")
     )
+
+    # timing_plot.save("plots/shot_detection/timing_error_distribution.svg")
+
+    timing_plot
     return
 
 
 @app.cell(hide_code=True)
 def _(shots_with_features):
-    (
+    location_plot = (
         shots_with_features
         .with_columns(
             x_error = c('x_adj_coord') - c('shot_x'),
@@ -95,12 +99,17 @@ def _(shots_with_features):
         >> ggplot(aes(x='x_error', y='y_error'))
         + geom_vline(xintercept=0, alpha=0.8)
         + geom_hline(yintercept=0, alpha=0.8)
-        + p9.geom_density_2d(aes(color='..level..'), levels=9)
+        + p9.stat_density_2d(aes(fill='stat(level)'), geom='polygon', levels=10, alpha=0.6)
+        + p9.geom_density_2d(levels=10, alpha=0.5)
         + p9.geom_rug()
-        + p9.scale_color_distiller(type='seq', palette='Oranges', direction=1)
+        + p9.scale_fill_distiller(type='seq', palette='Blues', direction=1)
         + theme_bw(base_size=10)
-        + labs(x="Estimated X Coordinate Error (ft)", y="Estimated Y Coordinate Error (ft)", title="2D Density of Estimated Shot Location Errors", color="Density", caption="X/Y Coordinate Error = Event Shot Location - Estimated Shot Location")
+        + labs(x="Estimated X Coordinate Error (ft)", y="Estimated Y Coordinate Error (ft)", title="Distribution of Estimated Shot Location Errors", fill="Density", caption="X/Y Coordinate Error = Event Shot Location - Estimated Shot Location")
     )
+
+    # location_plot.save("plots/shot_detection/location_error_distribution.svg")
+
+    location_plot
     return
 
 
