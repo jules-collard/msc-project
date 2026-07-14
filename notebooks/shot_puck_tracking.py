@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.23.8"
+__generated_with = "0.23.14"
 app = marimo.App(width="medium")
 
 with app.setup:
@@ -77,10 +77,11 @@ def _(puck_tracking, shots):
 
 
 @app.cell
-def _(shot_info, shots):
-    max_id = shots.select(c('shot_id').max()).collect().item()
+def _(shots):
+    ids = shots.filter().select(c('shot_id').unique()).collect().to_series()
+    first = ids.first()
 
-    id_selector = mo.ui.dropdown.from_series(shot_info.select(c('shot_id').unique()).to_series(), allow_select_none=False, label="Select Shot ID", value=0)
+    id_selector = mo.ui.dropdown.from_series(ids, allow_select_none=False, label="Select Shot ID", value=first)
     return (id_selector,)
 
 
