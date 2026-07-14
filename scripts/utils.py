@@ -64,3 +64,11 @@ def project_z_to_goalline(
         ).otherwise(None)
         .alias('goalline_z')
     )
+
+def cohens_kappa(tp: str, tn: str, fp: str, fn: str) -> pl.Expr:
+    """Returns a Polars expression to calculate Cohen's Kappa statistic."""
+    return (
+        2 * (c(tp) * c(tn) - c(fn) * c(fp))
+    ) / (
+        (c(tp) + c(fp)) * (c(fp) + c(tn)) + (c(tp) + c(fn)) * (c(fn) + c(tn))
+    )
