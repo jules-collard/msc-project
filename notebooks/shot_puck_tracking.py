@@ -14,8 +14,8 @@ with app.setup:
     from matplotlib import pyplot as plt
 
     from data_readers import read_events, read_puck_tracking, read_entity_tracking
-    from tracking_processing import derive_game_clock, adjust_vectors, calculate_goal_vectors, calculate_magnitudes
-    from event_processing import add_flip
+    from processing.tracking import derive_game_clock, adjust_vectors, calculate_goal_vectors, calculate_magnitudes
+    from processing.events import add_flip
     from features.puck import calculate_shot_detection
     from utils import distance_2d
 

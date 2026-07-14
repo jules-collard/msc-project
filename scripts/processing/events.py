@@ -4,7 +4,7 @@ import polars as pl
 from polars import col as c
 from polars import selectors as cs
 
-from tracking_processing import adjust_vectors
+from processing.tracking import adjust_vectors
 
 def explode_events(events: pl.DataFrame | pl.LazyFrame) -> pl.DataFrame | pl.LazyFrame:
     """

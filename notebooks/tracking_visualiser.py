@@ -11,9 +11,9 @@ with app.setup:
     from hockey_rink import NHLRink
     from matplotlib import pyplot as plt
 
-    from tracking_processing import derive_game_clock
+    from processing.tracking import derive_game_clock
     from data_readers import read_entity_registration, read_entity_tracking, read_events, read_puck_tracking
-    from event_processing import add_pass_target, add_carry_info, remove_non_viz_events
+    from processing.events import add_pass_target, add_carry_info, remove_non_viz_events
 
 
 @app.cell

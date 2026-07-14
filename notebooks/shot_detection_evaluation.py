@@ -7,15 +7,13 @@ with app.setup:
     import marimo as mo
     import polars as pl
     from polars import col as c
-    from polars import selectors as cs
     import plotnine as p9
-    from plotnine import ggplot, aes, labs, geom_histogram, geom_vline, geom_hline, theme_bw
+    from plotnine import ggplot, aes, labs, geom_vline, geom_hline, theme_bw
 
     from data_readers import read_events, read_entity_tracking, read_puck_tracking
-    from tracking_processing import derive_game_clock
-    from event_processing import add_flip
+    from processing.tracking import derive_game_clock
+    from processing.events import add_flip
     from features.puck import calculate_shot_detection, evaluate_shot_detection
-    from utils import cohens_kappa
 
 
 @app.cell(hide_code=True)

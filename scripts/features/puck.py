@@ -2,7 +2,7 @@ import polars as pl
 from polars import col as c
 from polars import selectors as cs
 
-from tracking_processing import adjust_vectors
+from processing.tracking import adjust_vectors
 from utils import distance_to_point_2d, magnitude_2d, distance_2d, project_y_to_goalline, project_z_to_goalline, cohens_kappa
 
 def calculate_goal_vectors(tracking: pl.DataFrame | pl.LazyFrame) -> pl.DataFrame | pl.LazyFrame:
