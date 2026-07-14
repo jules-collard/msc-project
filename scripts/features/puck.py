@@ -98,7 +98,7 @@ def calculate_shot_detection(
             deflection_condition = (c('angle_vel').abs() > deflection_angle_threshold),
             goal_line_condition = ((c('x_adj') >= 89) & (c('x_adj_coord') < 89)) | ((c('x_adj') < 89) & (c('x_adj_coord') >= 89))
         ).with_columns(
-            stop = ((c('frame_index') > c('shot_frame')) & pl.any_horizontal(cs.ends_with('condition'))).over(c('shot_id'))
+            stop = ((c('frame_index') > c('shot_frame') + 5) & pl.any_horizontal(cs.ends_with('condition'))).over(c('shot_id'))
         ).with_columns( # Take first frame where stop condition is met
             c('stop').arg_true().first().over(c('shot_id')).alias('stop_frame')
         ).with_columns(
