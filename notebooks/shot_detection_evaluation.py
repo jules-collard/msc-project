@@ -9,7 +9,7 @@ with app.setup:
     from polars import col as c
     from polars import selectors as cs
     import plotnine as p9
-    from plotnine import ggplot, aes, labs, geom_histogram, geom_point, geom_line, geom_text, geom_vline, geom_hline, theme, element_text, scale_x_continuous, scale_y_continuous, facet_wrap, theme_bw
+    from plotnine import ggplot, aes, labs, geom_histogram, geom_vline, geom_hline, theme_bw
 
     from data_readers import read_events, read_entity_tracking, read_puck_tracking
     from tracking_processing import derive_game_clock
