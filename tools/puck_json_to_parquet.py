@@ -4,6 +4,7 @@ from pathlib import Path
 
 import ijson
 import polars as pl
+from polars import col as c
 
 def parse_tracking_data(file_path):
     """
@@ -15,13 +16,27 @@ def parse_tracking_data(file_path):
             if o.get('EntityId') == '1':
                 yield o
 
-def process_file(input_path, output_dir=None, delete_input=False):
+def process_file(input_path, output_dir=None, delete_input=False, clean=False):
     """
     Reads a single JSON file, converts to DataFrame, and saves as Parquet.
     """
     path_obj = Path(input_path)
 
-    df = pl.from_dicts(parse_tracking_data(input_path), infer_schema_length=None)
+    df = pl.from_dicts(parse_tracking_data(input_path), infer_schema_length=None).lazy()
+
+    if clean:
+        df = (
+            df
+            .with_columns(
+                c('Location').struct.rename_fields(['x', 'y', 'z']).struct.unnest(), 
+                c('Velocity').struct.rename_fields(['vx', 'vy', 'vz']).struct.unnest(),
+                c('Acceleration').struct.rename_fields(['ax', 'ay', 'az']).struct.unnest(),
+            ).with_columns(
+                c('z', 'vz', 'az').fill_null(0) # missing z values represent 0 (i.e. puck on ice)
+            ).drop(c('Location', 'Velocity', 'Acceleration', 'OnPlayingSurface', 'PayloadData', 'EntityOfficialId',
+                    'Landmarks3D', 'MetaTag1', 'LocationLTC', 'MeasurementId', 'LocationConfidence'))
+            .rename({'LocationUTC':'ts', 'ClockState':'clock_state', 'EntityId':'entity_id'})
+        )
     
     if output_dir:
         output_dir_path = Path(output_dir)
@@ -31,7 +46,7 @@ def process_file(input_path, output_dir=None, delete_input=False):
 
     output_path = output_dir_path / f"{path_obj.stem}.parquet"
 
-    df.write_parquet(output_path)
+    df.sink_parquet(output_path)
 
     print(f"Successfully converted: {path_obj.name} -> {output_path.name}")
 
@@ -63,6 +78,11 @@ def main():
         action="store_true",
         help="Delete the input JSON file after successful conversion."
     )
+    parser.add_argument(
+        "-c", "--clean",
+        action="store_true",
+        help="Clean the output DataFrame to only include essential puck tracking columns."
+    )
     
     args = parser.parse_args()
     matched_files = glob.glob(args.input_files, recursive=True)
@@ -74,7 +94,7 @@ def main():
     print(f"Found {len(matched_files)} files. Starting conversion...")
     
     for file_path in matched_files:
-        process_file(file_path, args.output_dir, args.delete)
+        process_file(file_path, args.output_dir, args.delete, args.clean)
         
     print("Conversion complete.")
 
