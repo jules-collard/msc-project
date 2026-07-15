@@ -37,6 +37,7 @@ def batch_read_events(pattern: str, lazy=True) -> pl.DataFrame | pl.LazyFrame:
         .unnest('events')
         .with_columns(
             extract_game_id('source_path', '.*_sapifullevents.json'),
+            -c('y_coord', 'y_adj_coord')
         ).drop(c('source_path'))
     )
     return df if lazy else df.collect()
