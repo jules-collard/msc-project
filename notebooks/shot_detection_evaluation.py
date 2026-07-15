@@ -10,7 +10,7 @@ with app.setup:
     import plotnine as p9
     from plotnine import ggplot, aes, labs, geom_vline, geom_hline, theme_bw
 
-    from data_readers import read_events, read_entity_tracking, read_batch_puck_tracking
+    from data_readers import read_events, read_entity_tracking, batch_read_puck_tracking
     from processing.tracking import derive_game_clock
     from processing.events import add_flip
     from features.puck import calculate_shot_detection, evaluate_shot_detection
@@ -25,7 +25,7 @@ def _():
         "data/20260521/NHL_20252026_postseason_20260521_MTLvsCAR_entity_tracking_processed_measurements.parquet"
     )
 
-    puck_tracking = read_batch_puck_tracking(
+    puck_tracking = batch_read_puck_tracking(
         "data/20260521/HOCKEY_NHL_2026_05_21_MTL@CAR_HITS311_Period_*.parquet",
     )
 

@@ -87,7 +87,7 @@ def read_puck_tracking(paths: List[str], periods: List[int], lazy=True) -> pl.Da
 
     return puck_tracking if lazy else puck_tracking.collect()
 
-def read_batch_puck_tracking(pattern: str, lazy=True) -> pl.DataFrame | pl.LazyFrame:
+def batch_read_puck_tracking(pattern: str, lazy=True) -> pl.DataFrame | pl.LazyFrame:
     """
     Function to read multiple puck tracking files at once, using a glob pattern.
     Expects file names in the format "data/{game_id}/HOCKEY_NHL_..._Period_{period}.parquet"
