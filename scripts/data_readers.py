@@ -87,6 +87,24 @@ def read_puck_tracking(paths: List[str], periods: List[int], lazy=True) -> pl.Da
 
     return puck_tracking if lazy else puck_tracking.collect()
 
+def read_batch_puck_tracking(pattern: str, lazy=True) -> pl.DataFrame | pl.LazyFrame:
+    """
+    Function to read multiple puck tracking files at once, using a glob pattern.
+    Expects file names in the format "data/{game_id}/HOCKEY_NHL_..._Period_{period}.parquet"
+    Returns a single polars dataframe with all puck tracking data.
+    """
+
+    df = (
+        pl.scan_parquet(
+            pattern, 
+            include_file_paths="source_path"
+        ).with_columns(
+            game_id=pl.col("source_path").str.extract(r"/(\d+)/HOCKEY_NHL").cast(pl.String),
+            period=pl.col("source_path").str.extract(r"Period_(\d+)").cast(pl.Int32)
+        )
+    )
+    return df if lazy else df.collect()
+
 def read_id_mapping(path: str) -> Dict[str, str]:
     """
     Function to read NHL/Sportlogiq player ID mappings, returning a dictionary of Sportlogiq -> NHL ID mappings.

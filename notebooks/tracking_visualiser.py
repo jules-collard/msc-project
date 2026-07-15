@@ -12,23 +12,22 @@ with app.setup:
     from matplotlib import pyplot as plt
 
     from processing.tracking import derive_game_clock
-    from data_readers import read_entity_registration, read_entity_tracking, read_events, read_puck_tracking
-    from processing.events import add_pass_target, add_carry_info, remove_non_viz_events
+    from data_readers import read_entity_registration, read_entity_tracking, read_events, read_batch_puck_tracking
+    from processing.events import remove_non_viz_events
 
 
 @app.cell
 def _():
     player_tracking = (
-        read_entity_tracking("data/one_game/NHL_20252026_postseason_20260521_MTLvsCAR_entity_tracking_processed_measurements.parquet")
+        read_entity_tracking("data/20260521/NHL_20252026_postseason_20260521_MTLvsCAR_entity_tracking_processed_measurements.parquet")
     )
 
-    periods = [1,2,3]
-    puck_tracking = read_puck_tracking(
-        [f"data/one_game/HOCKEY_NHL_2026_05_21_MTL@CAR_HITS311_Period_{i}.json" for i in periods], periods
+    puck_tracking = read_batch_puck_tracking(
+        "data/20260521/HOCKEY_NHL_2026_05_21_MTL@CAR_HITS311_Period_*.parquet"
     )
 
-    rosters = read_entity_registration("data/one_game/NHL_20252026_postseason_20260521_MTLvsCAR_entity_registration.json", lazy=False)
-    events = read_events("data/one_game/NHL_20252026_playoffs_20260521_MTLvsCAR_sapifullevents.json", lazy=False)
+    rosters = read_entity_registration("data/20260521/NHL_20252026_postseason_20260521_MTLvsCAR_entity_registration.json", lazy=False)
+    events = read_events("data/20260521/NHL_20252026_playoffs_20260521_MTLvsCAR_sapifullevents.json", lazy=False)
     return events, player_tracking, puck_tracking, rosters
 
 

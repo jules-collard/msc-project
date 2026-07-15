@@ -7,25 +7,24 @@ with app.setup:
     import marimo as mo
     import polars as pl
     from polars import col as c
-    import numpy as np
     from hockey_rink import NHLRink
     from matplotlib import pyplot as plt
 
     from processing.tracking import derive_game_clock
     from data_readers import read_entity_registration, read_entity_tracking, read_events, read_id_mapping
-    from processing.events import add_pass_target, add_carry_info, join_tracking
+    from processing.events import join_tracking
 
 
 @app.cell
 def _():
-    events = read_events("data/one_game/NHL_20252026_playoffs_20260521_MTLvsCAR_sapifullevents.json")
+    events = read_events("data/20260521/NHL_20252026_playoffs_20260521_MTLvsCAR_sapifullevents.json")
     shots = events.filter(c('name') == 'shot')
 
-    mapping = read_id_mapping("data/one_game/NHL_20252026_postseason_20260521_MTLvsCAR_player_sportlogiq_id_map.csv")
+    mapping = read_id_mapping("data/20260521/NHL_20252026_postseason_20260521_MTLvsCAR_player_sportlogiq_id_map.csv")
 
     tracking = (
         read_entity_tracking(
-        "data/one_game/NHL_20252026_postseason_20260521_MTLvsCAR_entity_tracking_processed_measurements.parquet"
+        "data/20260521/NHL_20252026_postseason_20260521_MTLvsCAR_entity_tracking_processed_measurements.parquet"
         ).pipe(derive_game_clock)
     )
 

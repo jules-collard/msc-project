@@ -10,9 +10,13 @@ with app.setup:
 @app.cell
 def _():
     (
-        pl.read_json(
-            "data/20260521/HOCKEY_NHL_2026_05_21_MTL@CAR_HITS311_Period_1.json"
-        )
+        pl.scan_parquet(
+            "data/*/HOCKEY_NHL_*.parquet",
+            include_file_paths="source_path"
+        ).with_columns(
+            game_id=pl.col("source_path").str.extract(r"/(\d+)/HOCKEY_NHL").cast(pl.String),
+            period=pl.col("source_path").str.extract(r"Period_(\d+)").cast(pl.Int32)
+        ).collect()
     )
     return
 
