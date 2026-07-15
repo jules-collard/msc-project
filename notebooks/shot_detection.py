@@ -12,7 +12,7 @@ with app.setup:
     from hockey_rink import NHLRink
     from matplotlib import pyplot as plt
 
-    from data_readers import read_events, read_entity_tracking, batch_read_puck_tracking
+    from data_readers import read_events, read_entity_tracking, batch_read_puck_tracking, batch_read_events
     from processing.tracking import derive_game_clock, adjust_vectors, calculate_goal_vectors, calculate_magnitudes
     from processing.events import add_flip
     from features.puck import calculate_shot_detection
@@ -21,7 +21,7 @@ with app.setup:
 
 @app.cell
 def _():
-    events = read_events("data/20260521/NHL_20252026_playoffs_20260521_MTLvsCAR_sapifullevents.json").pipe(add_flip)
+    events = batch_read_events("data/20260521/*_sapifullevents.json").pipe(add_flip)
     shots = events.filter(c('name') == 'shot').sort(c('game_time')).with_row_index(name='shot_id')
     return (shots,)
 

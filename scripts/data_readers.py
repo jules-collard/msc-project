@@ -21,6 +21,26 @@ def read_events(path: str, lazy=True) -> pl.DataFrame | pl.LazyFrame:
     )
     return df.lazy() if lazy else df
 
+def batch_read_events(pattern: str, lazy=True) -> pl.DataFrame | pl.LazyFrame:
+    """
+    Function to read multiple event files at once, using a glob pattern.
+    Expects file names in the format "data/{game_id}/NHL_..._sapifullevents.json"
+    Returns a single polars dataframe with all event data.
+    """
+
+    df = (
+        pl.scan_ndjson(
+            pattern,
+            include_file_paths="source_path"
+        ).select(c('events', 'source_path'))
+        .explode('events')
+        .unnest('events')
+        .with_columns(
+            extract_game_id('source_path', '.*_sapifullevents.json'),
+        ).select(c('game_id', 'period', '*'))
+    )
+    return df if lazy else df.collect()
+
 def read_entity_registration(path: str, lazy=True, clean=True) -> pl.DataFrame | pl.LazyFrame:
     """
     Function to read entity_registration.json files.
@@ -99,8 +119,8 @@ def batch_read_puck_tracking(pattern: str, lazy=True) -> pl.DataFrame | pl.LazyF
             pattern, 
             include_file_paths="source_path"
         ).with_columns(
-            game_id=pl.col("source_path").str.extract(r"/(\d+)/HOCKEY_NHL").cast(pl.String),
-            period=pl.col("source_path").str.extract(r"Period_(\d+)").cast(pl.Int32)
+            extract_game_id("source_path"),
+            extract_period("source_path")
         )
     )
     return df if lazy else df.collect()
@@ -118,3 +138,15 @@ def read_id_mapping(path: str) -> Dict[str, str]:
     )
 
     return {key: value[0] for key, value in mapping_dict.items()}
+
+def extract_game_id(col_name: str, file_pattern: str = '.*') -> pl.Expr:
+    """
+    Function to extract game_id from a column containing file paths.
+    """
+    return c(col_name).str.extract(rf"data/(\d+)/{file_pattern}").cast(pl.String).alias("game_id")
+
+def extract_period(col_name: str) -> pl.Expr:
+    """
+    Function to extract period from a column containing file paths.
+    """
+    return c(col_name).str.extract(r"Period_(\d+)").cast(pl.Int32).alias("period")
