@@ -140,7 +140,7 @@ def batch_read_puck_tracking(pattern: str, lazy=True) -> pl.DataFrame | pl.LazyF
         ).with_columns(
             extract_game_id("source_path"),
             extract_period("source_path")
-        )
+        ).drop(c("source_path"))
     )
     return df if lazy else df.collect()
 
