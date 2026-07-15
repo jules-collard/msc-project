@@ -15,7 +15,7 @@ def parse_tracking_data(file_path):
             if o.get('EntityId') == '1':
                 yield o
 
-def process_file(input_path, output_dir=None):
+def process_file(input_path, output_dir=None, delete_input=False):
     """
     Reads a single JSON file, converts to DataFrame, and saves as Parquet.
     """
@@ -34,6 +34,10 @@ def process_file(input_path, output_dir=None):
     df.write_parquet(output_path)
 
     print(f"Successfully converted: {path_obj.name} -> {output_path.name}")
+
+    if delete_input:
+        path_obj.unlink()
+        print(f"Deleted original file: {path_obj.name}")
 
 def main():
     parser = argparse.ArgumentParser(
@@ -54,6 +58,11 @@ def main():
         default=None,
         help="Directory to save the resulting Parquet files. Defaults to the input file's directory."
     )
+    parser.add_argument(
+        "-d", "--delete",
+        action="store_true",
+        help="Delete the input JSON file after successful conversion."
+    )
     
     args = parser.parse_args()
     matched_files = glob.glob(args.input_files, recursive=True)
@@ -65,7 +74,7 @@ def main():
     print(f"Found {len(matched_files)} files. Starting conversion...")
     
     for file_path in matched_files:
-        process_file(file_path, args.output_dir)
+        process_file(file_path, args.output_dir, args.delete)
         
     print("Conversion complete.")
 

@@ -97,3 +97,67 @@ def test_main_cli_execution(tmp_path):
     # Verify both files were converted and saved to the output directory
     assert (output_dir / "HOCKEY_NHL_1.parquet").exists()
     assert (output_dir / "HOCKEY_NHL_2.parquet").exists()
+
+def test_process_file_deletes_input(tmp_path):
+    """Test that the input file is deleted when delete_input=True."""
+    json_file = tmp_path / "game_delete_test.json"
+    json_file.write_text(json.dumps(MOCK_JSON_DATA))
+    
+    # Verify file exists before processing
+    assert json_file.exists()
+
+    # Run processing with delete flag
+    process_file(str(json_file), delete_input=True)
+
+    expected_parquet = tmp_path / "game_delete_test.parquet"
+    
+    # Assertions
+    assert expected_parquet.exists(), "Parquet file should be created"
+    assert not json_file.exists(), "Original JSON file should be deleted"
+
+def test_process_file_keeps_input_by_default(tmp_path):
+    """Test that the input file is kept when delete_input=False (default)."""
+    json_file = tmp_path / "game_keep_test.json"
+    json_file.write_text(json.dumps(MOCK_JSON_DATA))
+
+    # Run processing without delete flag
+    process_file(str(json_file))
+
+    expected_parquet = tmp_path / "game_keep_test.parquet"
+    
+    # Assertions
+    assert expected_parquet.exists(), "Parquet file should be created"
+    assert json_file.exists(), "Original JSON file should be kept"
+
+def test_main_cli_delete_flag(tmp_path):
+    """Test that the --delete flag is correctly parsed and executed."""
+    input_dir = tmp_path / "input"
+    input_dir.mkdir()
+    
+    file1 = input_dir / "HOCKEY_NHL_3.json"
+    file2 = input_dir / "HOCKEY_NHL_4.json"
+    
+    file1.write_text(json.dumps(MOCK_JSON_DATA))
+    file2.write_text(json.dumps(MOCK_JSON_DATA))
+
+    output_dir = tmp_path / "output"
+
+    # Mock the command line arguments including the --delete flag
+    test_args = [
+        "converter.py", 
+        str(input_dir / "*.json"), 
+        "--output_dir", 
+        str(output_dir),
+        "--delete"
+    ]
+    
+    with patch.object(sys, 'argv', test_args):
+        main()
+
+    # Verify conversions succeeded
+    assert (output_dir / "HOCKEY_NHL_3.parquet").exists()
+    assert (output_dir / "HOCKEY_NHL_4.parquet").exists()
+    
+    # Verify original files were deleted
+    assert not file1.exists(), "File 1 should have been deleted by the CLI --delete flag"
+    assert not file2.exists(), "File 2 should have been deleted by the CLI --delete flag"
