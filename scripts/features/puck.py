@@ -53,18 +53,19 @@ def calculate_shot_detection(
 ) -> pl.DataFrame | pl.LazyFrame:
     """
     Calculates puck tracking features for each shot. Shots dataframe should be events-type dataframe, filtered
-    to only include shots, with a 'shot_id' column. Tracking dataframe should only contain puck tracking data, with
-    game clock derived.
+    to only include shots, with a 'shot_id' column, which must be unique across ENTIRE (loaded) dataset. Tracking
+    dataframe should only contain puck tracking data, with game clock derived.
 
     window_size: float, optional
-        The size of the window (in seconds) to select tracking data for each shot. Default is 0.8 seconds.
+        The size of the window (in seconds) to select tracking data for each shot. Default is 1.6 seconds.
     """
 
     # Add shot details to corresponding puck tracking data, and calculate features
     tracking_with_shots = (
-        puck_tracking.sort(c('game_time'))
+        puck_tracking.sort(c('game_id', 'period', 'game_time'))
         .join_asof(
             shots.sort(c('game_time')),
+            by=['game_id', 'period'],
             on='game_time',
             strategy='nearest',
             tolerance=window_size / 2,
@@ -82,7 +83,7 @@ def calculate_shot_detection(
 
     return (
         tracking_with_shots
-        .sort(c('shot_id', 'game_time'))
+        .sort(c('game_id', 'period', 'shot_id', 'game_time'))
         .with_columns(
             pl.int_range(pl.len()).over(c('shot_id')).alias('frame_index')
         ).with_columns( # Conditions for valid shot frames

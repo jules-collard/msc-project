@@ -21,26 +21,33 @@ with app.setup:
 
 @app.cell
 def _():
-    events = batch_read_events("data/20260521/*_sapifullevents.json").pipe(add_flip)
-    shots = events.filter(c('name') == 'shot').sort(c('game_time')).with_row_index(name='shot_id')
+    game_id_selector = mo.ui.text(placeholder="Enter Game ID", value="*")
+    game_id_selector
+    return (game_id_selector,)
+
+
+@app.cell
+def _(game_id_selector):
+    events = batch_read_events(f"data/{game_id_selector.value}/*_sapifullevents.json").pipe(add_flip)
+    shots = events.filter(c('name') == 'shot').sort(c('game_id', 'period', 'game_time')).with_row_index(name='shot_id')
     return (shots,)
 
 
 @app.cell
-def _():
+def _(game_id_selector):
     player_tracking = batch_read_entity_tracking(
-        "data/20260521/*_entity_tracking_processed_measurements.parquet"
+        f"data/{game_id_selector.value}/*_entity_tracking_processed_measurements.parquet"
     )
 
     puck_tracking = batch_read_puck_tracking(
-        "data/20260521/HOCKEY_NHL_*_Period_*.parquet",
+        f"data/{game_id_selector.value}/HOCKEY_NHL_*_Period_*.parquet",
     )
 
     puck_tracking = (
         pl.concat([player_tracking, puck_tracking], how='diagonal_relaxed')
         .pipe(derive_game_clock)
         .filter(c('clock_state') == 1, c('entity_id') == '1')
-        .sort(c('game_time'))
+        .sort(c('game_id', 'game_time'))
         .drop(c('entity_id', 'entity_official_id', 'segment_idx', 'clock_state', 'raw_x', 'raw_y', 'raw_z'))
     )
     return (puck_tracking,)
@@ -53,12 +60,13 @@ def _(puck_tracking, shots):
     shot_info = calculate_shot_detection(shots, puck_tracking, WINDOW_SIZE).collect()
 
     tracking_with_shots = (
-        puck_tracking.sort(c('game_time'))
+        puck_tracking.sort(c('game_id', 'period', 'game_time'))
         .join_asof(
-            shots.sort(c('game_time')),
+            shots.sort(c('game_id', 'period', 'game_time')),
+            by=['game_id', 'period'],
             on='game_time',
             strategy='nearest',
-            tolerance=WINDOW_SIZE,
+            tolerance=WINDOW_SIZE / 2,
             coalesce=False
         ).drop_nulls(c('shot_id'))
         .pipe(adjust_vectors)
@@ -66,7 +74,7 @@ def _(puck_tracking, shots):
         .pipe(calculate_goal_vectors)
         .pipe(calculate_magnitudes)
         .with_columns(
-            dist_to_shot = distance_2d('x_adj', 'y_adj', 'x_adj_coord', 'y_adj_coord').alias('dist_to_shot')
+            distance_2d('x_adj', 'y_adj', 'x_adj_coord', 'y_adj_coord').alias('dist_to_shot')
         ).with_columns(
             angle_vel = c('angle_to_goal').diff().over(c('shot_id'))
         )
@@ -75,8 +83,8 @@ def _(puck_tracking, shots):
 
 
 @app.cell
-def _(shots):
-    ids = shots.filter().select(c('shot_id').unique()).collect().to_series()
+def _(shot_info):
+    ids = shot_info.filter().select(c('shot_id').unique()).to_series()
     first = ids.first()
 
     id_selector = mo.ui.dropdown.from_series(ids, allow_select_none=False, label="Select Shot ID", value=first)

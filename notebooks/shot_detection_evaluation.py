@@ -10,7 +10,7 @@ with app.setup:
     import plotnine as p9
     from plotnine import ggplot, aes, labs, geom_vline, geom_hline, theme_bw
 
-    from data_readers import read_events, read_entity_tracking, batch_read_puck_tracking
+    from data_readers import batch_read_events, batch_read_entity_tracking, batch_read_puck_tracking
     from processing.tracking import derive_game_clock
     from processing.events import add_flip
     from features.puck import calculate_shot_detection, evaluate_shot_detection
@@ -18,22 +18,22 @@ with app.setup:
 
 @app.cell(hide_code=True)
 def _():
-    events = read_events("data/20260521/NHL_20252026_playoffs_20260521_MTLvsCAR_sapifullevents.json").pipe(add_flip)
-    shots = events.filter(c('name') == 'shot').sort(c('game_time')).with_row_index(name='shot_id')
+    events = batch_read_events("data/*/*_sapifullevents.json").pipe(add_flip)
+    shots = events.filter(c('name') == 'shot').sort(c('game_id', 'period', 'game_time')).with_row_index(name='shot_id')
 
-    player_tracking = read_entity_tracking(
-        "data/20260521/NHL_20252026_postseason_20260521_MTLvsCAR_entity_tracking_processed_measurements.parquet"
+    player_tracking = batch_read_entity_tracking(
+        "data/*/*_entity_tracking_processed_measurements.parquet"
     )
 
     puck_tracking = batch_read_puck_tracking(
-        "data/20260521/HOCKEY_NHL_2026_05_21_MTL@CAR_HITS311_Period_*.parquet",
+        "data/*/HOCKEY_NHL_*_Period_*.parquet",
     )
 
     puck_tracking = (
         pl.concat([player_tracking, puck_tracking], how='diagonal_relaxed')
         .pipe(derive_game_clock)
         .filter(c('clock_state') == 1, c('entity_id') == '1')
-        .sort(c('game_time'))
+        .sort(c('game_id', 'period', 'game_time'))
         .drop(c('entity_id', 'entity_official_id', 'segment_idx', 'clock_state', 'raw_x', 'raw_y', 'raw_z'))
     )
     return puck_tracking, shots
