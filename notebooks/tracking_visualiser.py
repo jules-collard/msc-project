@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.23.8"
+__generated_with = "0.23.14"
 app = marimo.App(width="medium")
 
 with app.setup:
@@ -12,22 +12,22 @@ with app.setup:
     from matplotlib import pyplot as plt
 
     from processing.tracking import derive_game_clock
-    from data_readers import read_entity_registration, read_entity_tracking, read_events, batch_read_puck_tracking
+    from data_readers import read_entity_registration, batch_read_entity_tracking, batch_read_events, batch_read_puck_tracking
     from processing.events import remove_non_viz_events
 
 
 @app.cell
 def _():
     player_tracking = (
-        read_entity_tracking("data/20260521/NHL_20252026_postseason_20260521_MTLvsCAR_entity_tracking_processed_measurements.parquet")
+        batch_read_entity_tracking("data/20260611/*_entity_tracking_processed_measurements.parquet")
     )
 
     puck_tracking = batch_read_puck_tracking(
-        "data/20260521/HOCKEY_NHL_2026_05_21_MTL@CAR_HITS311_Period_*.parquet"
+        "data/20260611/*_Period_*.parquet"
     )
 
-    rosters = read_entity_registration("data/20260521/NHL_20252026_postseason_20260521_MTLvsCAR_entity_registration.json", lazy=False)
-    events = read_events("data/20260521/NHL_20252026_playoffs_20260521_MTLvsCAR_sapifullevents.json", lazy=False)
+    rosters = read_entity_registration("data/20260611/NHL_20252026_postseason_20260611_VGKvsCAR_entity_registration.json", lazy=False)
+    events = batch_read_events("data/20260611/*_sapifullevents.json", lazy=False)
     return events, player_tracking, puck_tracking, rosters
 
 
