@@ -5,6 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "argparse>=1.4.0",
     "hockey-rink>=1.1.4",
     "ijson>=3.5.0",
     "marimo==0.23.14",
@@ -21,4 +22,5 @@ pythonpath = ["scripts"]
 [dependency-groups]
 dev = [
     "pydantic-ai>=2.8.0",
+    "pytest>=9.1.1",
 ]
