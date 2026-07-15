@@ -64,7 +64,7 @@ def calculate_shot_detection(
     tracking_with_shots = (
         puck_tracking.sort(c('game_id', 'period', 'game_time'))
         .join_asof(
-            shots.sort(c('game_time')),
+            shots.sort(c('game_id', 'period', 'game_time')),
             by=['game_id', 'period'],
             on='game_time',
             strategy='nearest',
