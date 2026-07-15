@@ -37,7 +37,7 @@ def batch_read_events(pattern: str, lazy=True) -> pl.DataFrame | pl.LazyFrame:
         .unnest('events')
         .with_columns(
             extract_game_id('source_path', '.*_sapifullevents.json'),
-        ).select(c('game_id', 'period', '*'))
+        ).drop(c('source_path'))
     )
     return df if lazy else df.collect()
 
@@ -73,6 +73,23 @@ def read_entity_tracking(path: str, lazy=True) -> pl.DataFrame | pl.LazyFrame:
 
     df = pl.from_arrow(reader.get_table())
     return df.lazy() if lazy else df
+
+def batch_read_entity_tracking(pattern: str, lazy=True) -> pl.DataFrame | pl.LazyFrame:
+    """
+    Function to read multiple entity tracking files at once, using a glob pattern.
+    Expects file names in the format "data/{game_id}/NHL_..._entity_tracking_processed_measurements.parquet"
+    Returns a single polars dataframe with all entity tracking data.
+    """
+
+    df = (
+        pl.scan_parquet(
+            pattern, 
+            include_file_paths='source_path'
+        ).with_columns(
+            extract_game_id('source_path', '.*_entity_tracking_processed_measurements\.parquet'),
+        ).drop(c('source_path'))
+    )
+    return df if lazy else df.collect()
 
 def read_puck_tracking(paths: List[str], periods: List[int], lazy=True) -> pl.DataFrame | pl.LazyFrame:
     """
