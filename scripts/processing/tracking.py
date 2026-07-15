@@ -13,11 +13,11 @@ def derive_game_clock(tracking: pl.DataFrame | pl.LazyFrame) -> pl.DataFrame | p
     return (
         tracking
         .sort(c('ts'))
-        .with_columns(delta = c('ts').diff())
+        .with_columns(delta = c('ts').diff().over('game_id', 'period'))
         # Don't increment game clock when clock is stopped
         .with_columns(delta = pl.when(c('clock_state') == 1).then(c('delta')).otherwise(0).fill_null(0))
         .with_columns(
-            period_time = c('delta').cum_sum().over('period')
+            period_time = c('delta').cum_sum().over('game_id', 'period')
         ).with_columns(
             game_time = (c('period') - 1) * 1200 + c('period_time')
         ).drop(c('delta'))
