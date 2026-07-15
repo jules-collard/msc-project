@@ -12,7 +12,7 @@ with app.setup:
     from hockey_rink import NHLRink
     from matplotlib import pyplot as plt
 
-    from data_readers import read_events, read_entity_tracking, batch_read_puck_tracking, batch_read_events
+    from data_readers import read_events, batch_read_entity_tracking, batch_read_puck_tracking, batch_read_events
     from processing.tracking import derive_game_clock, adjust_vectors, calculate_goal_vectors, calculate_magnitudes
     from processing.events import add_flip
     from features.puck import calculate_shot_detection
@@ -28,12 +28,12 @@ def _():
 
 @app.cell
 def _():
-    player_tracking = read_entity_tracking(
-        "data/20260521/NHL_20252026_postseason_20260521_MTLvsCAR_entity_tracking_processed_measurements.parquet"
+    player_tracking = batch_read_entity_tracking(
+        "data/20260521/*_entity_tracking_processed_measurements.parquet"
     )
 
     puck_tracking = batch_read_puck_tracking(
-        "data/20260521/HOCKEY_NHL_2026_05_21_MTL@CAR_HITS311_Period_*.parquet",
+        "data/20260521/HOCKEY_NHL_*_Period_*.parquet",
     )
 
     puck_tracking = (
