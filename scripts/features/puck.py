@@ -90,6 +90,7 @@ def calculate_shot_detection(
             valid_shot_frame = (c('dist_to_shot') <= distance_threshold) 
             & (c('angle_to_goal').abs() <= 90)
             & (c('goal_speed') > 0)
+            & (c('goal_acceleration') > 0)
         ).with_columns(
             masked_acceleration = pl.when(c('valid_shot_frame')).then(c('acceleration')).otherwise(None)
         ).with_columns( # Identify frame where shot occurs
@@ -101,7 +102,7 @@ def calculate_shot_detection(
         ).with_columns(
             stop = ((c('frame_index') > c('shot_frame') + 5) & pl.any_horizontal(cs.ends_with('condition'))).over(c('shot_id'))
         ).with_columns( # Take first frame where stop condition is met, otherwise take last frame of shot trajectory
-            c('stop').arg_true().first().alias('stop_frame')
+            c('stop').arg_true().first().fill_null(c('frame_index').last()).over(c('shot_id')).alias('stop_frame')
         ).with_columns(
             masked_speed = pl.when(
                 # Only consider speed within shot window
