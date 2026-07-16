@@ -13,10 +13,10 @@ with app.setup:
     from matplotlib import pyplot as plt
 
     from data_readers import batch_read_puck_tracking, batch_read_events
-    from processing.tracking import adjust_vectors, calculate_magnitudes, calculate_elapsed_time
+    from processing.tracking import adjust_vectors, calculate_elapsed_time
     from processing.events import extract_flip, timecode_to_seconds
     from features.puck import calculate_shot_detection, calculate_goal_vectors
-    from utils import distance_2d
+    from utils import distance_2d, magnitude_2d
 
 
 @app.cell
@@ -78,14 +78,14 @@ def _(puck_tracking, shots):
             coalesce=False
         ).drop_nulls(c('shot_id'))
         .with_columns(adjust_vectors(c('x', 'y', 'vx', 'vy', 'ax', 'ay')))
-        .collect()
-        .with_columns(calculate_goal_vectors())
-        .pipe(calculate_magnitudes)
         .with_columns(
-            distance_2d('x_adj', 'y_adj', 'x_adj_coord', 'y_adj_coord').alias('dist_to_shot')
+            calculate_goal_vectors(),
+            speed = magnitude_2d('vx', 'vy'),
+            acceleration = magnitude_2d('ax', 'ay'),
+            dist_to_shot = distance_2d('x_adj', 'y_adj', 'x_adj_coord', 'y_adj_coord')
         ).with_columns(
             angle_vel = c('angle_to_goal').diff().over(c('shot_id'))
-        )
+        ).collect()
     )
     return shot_info, tracking_with_shots
 

@@ -3,8 +3,6 @@ from typing import Union, List
 import polars as pl
 from polars import col as c
 
-from utils import magnitude_2d
-
 def derive_game_clock(tracking: pl.DataFrame | pl.LazyFrame) -> pl.DataFrame | pl.LazyFrame: # USE FOR SINGLE GAME ONLY
     """
     Function to add period_time and game_time fields to tracking data.
@@ -40,14 +38,6 @@ def adjust_vectors(expr: pl.Expr, flip_expr: pl.Expr = c('flip')) -> pl.Expr:
         .then(-expr)
         .otherwise(expr)
         .name.suffix('_adj')
-    )
-
-def calculate_magnitudes(tracking: pl.DataFrame | pl.LazyFrame) -> pl.DataFrame | pl.LazyFrame:
-    return (
-        tracking.with_columns(
-            speed = magnitude_2d('vx', 'vy'),
-            acceleration = magnitude_2d('ax', 'ay'),
-        )
     )
 
 def calculate_elapsed_time(

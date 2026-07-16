@@ -48,14 +48,6 @@ def calculate_goal_vectors(
         pl.arctan2(tangent_speed, goal_speed).degrees().alias("angle_to_goal")
     ]
 
-def calculate_magnitudes(tracking: pl.DataFrame | pl.LazyFrame) -> pl.DataFrame | pl.LazyFrame:
-    return (
-        tracking.with_columns(
-            speed = magnitude_2d('vx', 'vy'),
-            acceleration = magnitude_2d('ax', 'ay'),
-        )
-    )
-
 def calculate_shot_detection(
         shots: pl.DataFrame | pl.LazyFrame,
         puck_tracking: pl.DataFrame | pl.LazyFrame,
@@ -85,10 +77,11 @@ def calculate_shot_detection(
             coalesce=False
         ).drop_nulls(c('shot_id'))
         .with_columns(adjust_vectors(c('x', 'y', 'vx', 'vy', 'ax', 'ay')))
-        .with_columns(calculate_goal_vectors())
-        .pipe(calculate_magnitudes)
         .with_columns(
-            dist_to_shot = distance_2d('x_adj', 'y_adj', 'x_adj_coord', 'y_adj_coord').alias('dist_to_shot')
+            calculate_goal_vectors(),
+            speed = magnitude_2d('vx', 'vy'),
+            acceleration = magnitude_2d('ax', 'ay'),
+            dist_to_shot = distance_2d('x_adj', 'y_adj', 'x_adj_coord', 'y_adj_coord')
         ).with_columns(
             angle_vel = c('angle_to_goal').diff().over(c('shot_id'))
         )
