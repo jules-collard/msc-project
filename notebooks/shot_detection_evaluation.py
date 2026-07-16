@@ -16,27 +16,30 @@ with app.setup:
     from features.puck import calculate_shot_detection, evaluate_shot_detection
 
 
-@app.cell(hide_code=True)
+@app.cell
 def _():
-    events = batch_read_events("data/*/*_sapifullevents.json").pipe(add_flip)
+    game_id_selector = mo.ui.text(placeholder="Enter Game ID", value="*")
+    game_id_selector
+    return (game_id_selector,)
+
+
+@app.cell(hide_code=True)
+def _(game_id_selector):
+    events = batch_read_events(f"data/{game_id_selector.value}/*_sapifullevents.json").pipe(add_flip)
     shots = (
         events
         .with_columns(elapsed_time = timecode_to_seconds())
         .filter(c('name') == 'shot')
-        .sort(c('game_id', 'period', 'game_time'))
+        .sort(c('game_id', 'period', 'elapsed_time'))
         .with_row_index(name='shot_id')
     )
 
-    player_tracking = batch_read_entity_tracking(
-        "data/*/*_entity_tracking_processed_measurements.parquet"
-    )
-
     puck_tracking = batch_read_puck_tracking(
-        "data/*/HOCKEY_NHL_*_Period_*.parquet",
+        f"data/{game_id_selector.value}/HOCKEY_NHL_*_Period_*.parquet",
     )
 
     puck_tracking = (
-        pl.concat([player_tracking, puck_tracking], how='diagonal_relaxed')
+        puck_tracking
         .with_columns(elapsed_time = calculate_elapsed_time())
         .filter(c('entity_id') == '1')
         .sort(c('game_id', 'period', 'elapsed_time'))
@@ -68,8 +71,7 @@ def _(shots_with_features):
 
 @app.cell
 def _(acc_slider, angle_slider, distance_slider, metrics):
-    mo.vstack([distance_slider, acc_slider, angle_slider, mo.ui.table(metrics)]
-    )
+    mo.vstack([distance_slider, acc_slider, angle_slider, mo.ui.table(metrics)])
     return
 
 
