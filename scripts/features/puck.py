@@ -5,35 +5,48 @@ from polars import selectors as cs
 from processing.tracking import adjust_vectors
 from utils import distance_to_point_2d, magnitude_2d, distance_2d, project_y_to_goalline, project_z_to_goalline, cohens_kappa
 
-def calculate_goal_vectors(tracking: pl.DataFrame | pl.LazyFrame) -> pl.DataFrame | pl.LazyFrame:
+def calculate_goal_vectors(
+    x_expr: pl.Expr | str = 'x_adj',
+    y_expr: pl.Expr | str = 'y_adj',
+    vx_expr: pl.Expr | str = 'vx_adj',
+    vy_expr: pl.Expr | str = 'vy_adj',
+    ax_expr: pl.Expr | str = 'ax_adj',
+    ay_expr: pl.Expr | str = 'ay_adj'
+) -> list[pl.Expr]:
+    """
+    Function to calculate goal vector features (goal_speed, goal_acceleration, angle_to_goal) from input expressions.
+    Projects velocity and acceleration onto the vector from the puck to the goal, and calculates the angle of the velocity
+    vector relative to the goal vector.
+    """
+
+    x_expr = pl.col(x_expr) if isinstance(x_expr, str) else x_expr
+    y_expr = pl.col(y_expr) if isinstance(y_expr, str) else y_expr
+    vx_expr = pl.col(vx_expr) if isinstance(vx_expr, str) else vx_expr
+    vy_expr = pl.col(vy_expr) if isinstance(vy_expr, str) else vy_expr
+    ax_expr = pl.col(ax_expr) if isinstance(ax_expr, str) else ax_expr
+    ay_expr = pl.col(ay_expr) if isinstance(ay_expr, str) else ay_expr
+
     GOAL_X = 89
     GOAL_Y = 0
+
+    # Vector to goal and distance
+    dx = GOAL_X - x_expr
+    dy = GOAL_Y - y_expr
+    dist = distance_to_point_2d(x_expr, y_expr, GOAL_X, GOAL_Y) + 1e-6
     
-    return (
-        tracking
-        .with_columns(
-            # 1. Calculate the vector from the puck to the net
-            (GOAL_X - pl.col("x_adj")).alias("dx_to_goal"),
-            (GOAL_Y - pl.col("y_adj")).alias("dy_to_goal")
-        ).with_columns(
-            # 2. Calculate the distance (magnitude of the vector)
-            (distance_to_point_2d("x_adj", "y_adj", GOAL_X, GOAL_Y) + 1e-6).alias("dist_to_goal")
-        ).with_columns(
-            # 3. Calculate Unit Vector components (normalized direction)
-            (pl.col("dx_to_goal") / pl.col("dist_to_goal")).alias("u_x"),
-            (pl.col("dy_to_goal") / pl.col("dist_to_goal")).alias("u_y")
-        ).with_columns(
-            # Dot Products: Project velocity and acceleration onto the unit vector
-            ((pl.col("vx_adj") * pl.col("u_x")) + (pl.col("vy_adj") * pl.col("u_y"))).alias("goal_speed"),
-            ((pl.col("ax_adj") * pl.col("u_x")) + (pl.col("ay_adj") * pl.col("u_y"))).alias("goal_acceleration"),
-            # Cross Product
-            ((pl.col("u_x") * pl.col("vy_adj")) - (pl.col("u_y") * pl.col("vx_adj"))).alias("tangent_speed")
-        ).with_columns(
-            pl.arctan2(pl.col("tangent_speed"), pl.col("goal_speed")).degrees().alias("angle_to_goal")
-        ).drop(
-            "dx_to_goal", "dy_to_goal", "dist_to_goal", "u_x", "u_y", "tangent_speed"
-        )
-    )
+    # Unit vector components
+    u_x = dx / dist
+    u_y = dy / dist
+
+    goal_speed = ((vx_expr * u_x) + (vy_expr * u_y))
+    goal_acceleration = ((ax_expr * u_x) + (ay_expr * u_y))
+    tangent_speed = ((u_x * vy_expr) - (u_y * vx_expr))
+    
+    return [
+        goal_speed.alias("goal_speed"),
+        goal_acceleration.alias("goal_acceleration"),
+        pl.arctan2(tangent_speed, goal_speed).degrees().alias("angle_to_goal")
+    ]
 
 def calculate_magnitudes(tracking: pl.DataFrame | pl.LazyFrame) -> pl.DataFrame | pl.LazyFrame:
     return (
@@ -72,7 +85,7 @@ def calculate_shot_detection(
             coalesce=False
         ).drop_nulls(c('shot_id'))
         .with_columns(adjust_vectors(c('x', 'y', 'vx', 'vy', 'ax', 'ay')))
-        .pipe(calculate_goal_vectors)
+        .with_columns(calculate_goal_vectors())
         .pipe(calculate_magnitudes)
         .with_columns(
             dist_to_shot = distance_2d('x_adj', 'y_adj', 'x_adj_coord', 'y_adj_coord').alias('dist_to_shot')
