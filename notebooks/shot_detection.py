@@ -77,7 +77,7 @@ def _(puck_tracking, shots):
             tolerance=WINDOW_SIZE / 2,
             coalesce=False
         ).drop_nulls(c('shot_id'))
-        .pipe(adjust_vectors)
+        .with_columns(adjust_vectors(c('x', 'y', 'vx', 'vy', 'ax', 'ay')))
         .collect()
         .pipe(calculate_goal_vectors)
         .pipe(calculate_magnitudes)

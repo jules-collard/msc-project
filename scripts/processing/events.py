@@ -152,7 +152,7 @@ def join_tracking(
     exploded_events = (
         events
         .sort(c('game_time'))
-        .pipe(add_flip)
+        .with_columns(extract_flip())
         .pipe(explode_events)
         .with_columns(
             c('onice_player_ref').replace_strict(mapping), 
@@ -173,7 +173,7 @@ def join_tracking(
             by_right='entity_official_id',
             tolerance=0.15,
             check_sortedness=False
-        ).pipe(adjust_vectors)
+        ).with_columns(adjust_vectors(c('x', 'y', 'vx', 'vy', 'ax', 'ay')))
     )
 
 def timecode_to_seconds(expr: pl.Expr | str = 'timecode') -> pl.Expr:
@@ -194,4 +194,4 @@ def timecode_to_seconds(expr: pl.Expr | str = 'timecode') -> pl.Expr:
         parts.struct.field('timecode_min').cast(pl.Int32) * 60 +
         parts.struct.field('timecode_sec').cast(pl.Int32) +
         parts.struct.field('timecode_frame').cast(pl.Float64) / 30
-    )
+    ).alias('elapsed_time')

@@ -31,27 +31,15 @@ def convert_timestamps(tracking: pl.DataFrame | pl.LazyFrame) -> pl.DataFrame | 
     """
     return tracking.with_columns(pl.from_epoch(c("ts"), time_unit="s").alias("ts"))
 
-def adjust_vectors(tracking: pl.DataFrame | pl.LazyFrame) -> pl.DataFrame | pl.LazyFrame:
+def adjust_vectors(expr: pl.Expr, flip_expr: pl.Expr = c('flip')) -> pl.Expr:
     """
-    Adds adj_... columns to tracking locations, velocities and accelerations to correct
-    for attacking direction.
+    Function to adjust vectors (specified by input expression) for attacking direction.
     """
-
-    if isinstance(tracking, pl.DataFrame):
-        assert 'flip' in tracking.columns
-    elif isinstance(tracking, pl.LazyFrame):
-        assert 'flip' in tracking.collect_schema().names()
-    else:
-        raise TypeError
-
     return (
-        tracking
-        .with_columns(
-            pl.when(c('flip'))
-            .then(-c('x', 'y', 'vx', 'vy', 'ax', 'ay'))
-            .otherwise(c('x', 'y', 'vx', 'vy', 'ax', 'ay'))
-            .name.suffix('_adj')
-        )
+        pl.when(flip_expr)
+        .then(-expr)
+        .otherwise(expr)
+        .name.suffix('_adj')
     )
 
 def calculate_goal_vectors(tracking: pl.DataFrame | pl.LazyFrame) -> pl.DataFrame | pl.LazyFrame:
@@ -112,4 +100,4 @@ def calculate_elapsed_time(
     )
     
     # Subtract the period start from the current timestamp
-    return ts_expr - period_start_ts
+    return (ts_expr - period_start_ts).alias('elapsed_time')

@@ -71,7 +71,7 @@ def calculate_shot_detection(
             tolerance=window_size / 2,
             coalesce=False
         ).drop_nulls(c('shot_id'))
-        .pipe(adjust_vectors)
+        .with_columns(adjust_vectors(c('x', 'y', 'vx', 'vy', 'ax', 'ay')))
         .pipe(calculate_goal_vectors)
         .pipe(calculate_magnitudes)
         .with_columns(
