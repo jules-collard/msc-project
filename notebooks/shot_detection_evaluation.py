@@ -83,6 +83,7 @@ def _(shots_with_features):
         + p9.geom_density(fill='lightblue', alpha=0.5)
         # + geom_histogram(bins=25, color='black')
         + p9.theme_bw(base_size=10)
+        + p9.xlim((-0.5, 0.5))
         + labs(x="Estimated Timing Error (seconds)", y="Density", title="Distribution of Estimated Timing Errors for Shots",
               caption="Timing Error = Event Time - Estimated Shot Time")
     )
