@@ -12,9 +12,9 @@ with app.setup:
     from hockey_rink import NHLRink
     from matplotlib import pyplot as plt
 
-    from data_readers import read_events, batch_read_entity_tracking, batch_read_puck_tracking, batch_read_events
-    from processing.tracking import derive_game_clock, adjust_vectors, calculate_goal_vectors, calculate_magnitudes, calculate_elapsed_time
-    from processing.events import add_flip, timecode_to_seconds
+    from data_readers import batch_read_puck_tracking, batch_read_events
+    from processing.tracking import adjust_vectors, calculate_goal_vectors, calculate_magnitudes, calculate_elapsed_time
+    from processing.events import extract_flip, timecode_to_seconds
     from features.puck import calculate_shot_detection
     from utils import distance_2d
 
@@ -28,7 +28,11 @@ def _():
 
 @app.cell
 def _(game_id_selector):
-    events = batch_read_events(f"data/{game_id_selector.value}/*_sapifullevents.json").pipe(add_flip)
+    events = (
+        batch_read_events(f"data/{game_id_selector.value}/*_sapifullevents.json")
+        .with_columns(extract_flip())
+    )
+
     shots = (
         events
         .with_columns(elapsed_time = timecode_to_seconds())
@@ -41,10 +45,6 @@ def _(game_id_selector):
 
 @app.cell
 def _(game_id_selector):
-    player_tracking = batch_read_entity_tracking(
-        f"data/{game_id_selector.value}/*_entity_tracking_processed_measurements.parquet"
-    )
-
     puck_tracking = batch_read_puck_tracking(
         f"data/{game_id_selector.value}/HOCKEY_NHL_*_Period_*.parquet",
     )

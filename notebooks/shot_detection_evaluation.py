@@ -10,9 +10,9 @@ with app.setup:
     import plotnine as p9
     from plotnine import ggplot, aes, labs, geom_vline, geom_hline, theme_bw
 
-    from data_readers import batch_read_events, batch_read_entity_tracking, batch_read_puck_tracking
-    from processing.tracking import derive_game_clock, calculate_elapsed_time
-    from processing.events import add_flip, timecode_to_seconds
+    from data_readers import batch_read_events, batch_read_puck_tracking
+    from processing.tracking import calculate_elapsed_time
+    from processing.events import extract_flip, timecode_to_seconds
     from features.puck import calculate_shot_detection, evaluate_shot_detection
 
 
@@ -25,7 +25,7 @@ def _():
 
 @app.cell(hide_code=True)
 def _(game_id_selector):
-    events = batch_read_events(f"data/{game_id_selector.value}/*_sapifullevents.json").pipe(add_flip)
+    events = batch_read_events(f"data/{game_id_selector.value}/*_sapifullevents.json").with_columns(extract_flip())
     shots = (
         events
         .with_columns(elapsed_time = timecode_to_seconds())

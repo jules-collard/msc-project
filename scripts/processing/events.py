@@ -115,6 +115,27 @@ def add_flip(events: pl.DataFrame | pl.LazyFrame) -> pl.DataFrame | pl.LazyFrame
         )
     )
 
+def extract_flip(
+        expr_x: pl.Expr | str = 'x_coord',
+        expr_x_adj: pl.Expr | str = 'x_adj_coord',
+        expr_y: pl.Expr | str = 'y_coord',
+        expr_y_adj: pl.Expr | str = 'y_adj_coord'
+) -> pl.Expr:
+    """
+    Expression to identify whether raw coordinates require flipping to recover adjusted coordinates.
+    Returns boolean expression/column, true if flip is required, false otherwise.
+    """
+    if isinstance(expr_x, str):
+        expr_x = c(expr_x)
+    if isinstance(expr_y, str):
+        expr_y = c(expr_y)
+    if isinstance(expr_x_adj, str):
+        expr_x_adj = c(expr_x_adj)
+    if isinstance(expr_y_adj, str):
+        expr_y_adj = c(expr_y_adj)
+
+    return (expr_x.ne(expr_x_adj)).or_(expr_y.ne(expr_y_adj)).alias('flip')
+
 def join_tracking(
     events: pl.DataFrame | pl.LazyFrame,
     tracking: pl.DataFrame | pl.LazyFrame,
