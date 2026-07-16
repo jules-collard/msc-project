@@ -62,11 +62,11 @@ def calculate_shot_detection(
 
     # Add shot details to corresponding puck tracking data, and calculate features
     tracking_with_shots = (
-        puck_tracking.sort(c('game_id', 'period', 'game_time'))
+        puck_tracking.sort(c('game_id', 'period', 'elapsed_time'))
         .join_asof(
-            shots.sort(c('game_id', 'period', 'game_time')),
+            shots.sort(c('game_id', 'period', 'elapsed_time')),
             by=['game_id', 'period'],
-            on='game_time',
+            on='elapsed_time',
             strategy='nearest',
             tolerance=window_size / 2,
             coalesce=False
@@ -83,7 +83,7 @@ def calculate_shot_detection(
 
     return (
         tracking_with_shots
-        .sort(c('game_id', 'period', 'shot_id', 'game_time'))
+        .sort(c('game_id', 'period', 'shot_id', 'elapsed_time'))
         .with_columns(
             pl.int_range(pl.len()).over(c('shot_id')).alias('frame_index')
         ).with_columns( # Conditions for valid shot frames
@@ -100,8 +100,8 @@ def calculate_shot_detection(
             goal_line_condition = ((c('x_adj') >= 89) & (c('x_adj_coord') < 89)) | ((c('x_adj') < 89) & (c('x_adj_coord') >= 89))
         ).with_columns(
             stop = ((c('frame_index') > c('shot_frame') + 5) & pl.any_horizontal(cs.ends_with('condition'))).over(c('shot_id'))
-        ).with_columns( # Take first frame where stop condition is met
-            c('stop').arg_true().first().over(c('shot_id')).alias('stop_frame')
+        ).with_columns( # Take first frame where stop condition is met, otherwise take last frame of shot trajectory
+            c('stop').arg_true().first().alias('stop_frame')
         ).with_columns(
             masked_speed = pl.when(
                 # Only consider speed within shot window
@@ -112,14 +112,14 @@ def calculate_shot_detection(
             speed_frame = c('masked_speed').arg_max().over(c('shot_id')),
         ).group_by(c('shot_id'))
         .agg(
-            c('game_time').filter(c('frame_index') == c('shot_frame')).first().alias('shot_time'),
-            c('game_time').filter(c('frame_index') < c('stop_frame')).last().alias('shot_end_time'),
-            c('game_time_right').filter(c('frame_index') == c('shot_frame')).first().alias('event_time'),
+            c('elapsed_time').filter(c('frame_index') == c('shot_frame')).first().alias('shot_time'),
+            c('elapsed_time').filter(c('frame_index') < c('stop_frame')).last().alias('shot_end_time'),
+            c('elapsed_time_right').filter(c('frame_index') == c('shot_frame')).first().alias('event_time'),
             c('speed').filter(c('frame_index') == c('speed_frame')).first().alias('shot_speed'),
             c('x_adj').filter(c('frame_index') == c('shot_frame')).first().alias('shot_x'),
             c('y_adj').filter(c('frame_index') == c('shot_frame')).first().alias('shot_y'),
             c('z').filter(c('frame_index') == c('shot_frame')).first().alias('shot_z'),
-            c('game_time').filter(c('frame_index') < c('stop_frame')).last().alias('traj_time'),
+            c('elapsed_time').filter(c('frame_index') < c('stop_frame')).last().alias('traj_time'),
             c('x_adj').filter(c('frame_index') < c('stop_frame')).last().alias('traj_x'),
             c('y_adj').filter(c('frame_index') < c('stop_frame')).last().alias('traj_y'),
             c('z').filter(c('frame_index') < c('stop_frame')).last().alias('traj_z'),

@@ -154,3 +154,23 @@ def join_tracking(
             check_sortedness=False
         ).pipe(adjust_vectors)
     )
+
+def timecode_to_seconds(expr: pl.Expr | str = 'timecode') -> pl.Expr:
+    """
+    Function to convert timecode string (MM:SS) to elapsed seconds from period start.
+    """
+    if isinstance(expr, str):
+        expr = c(expr)
+
+    parts = (
+        expr
+        .str.split_exact(':', 3)
+        .struct.rename_fields(['timecode_hr', 'timecode_min', 'timecode_sec', 'timecode_frame'])
+    )
+
+    return (
+        parts.struct.field('timecode_hr').cast(pl.Int32) * 3600 +
+        parts.struct.field('timecode_min').cast(pl.Int32) * 60 +
+        parts.struct.field('timecode_sec').cast(pl.Int32) +
+        parts.struct.field('timecode_frame').cast(pl.Float64) / 30
+    )

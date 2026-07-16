@@ -1,3 +1,5 @@
+from typing import Union, List
+
 import polars as pl
 from polars import col as c
 
@@ -89,3 +91,25 @@ def calculate_magnitudes(tracking: pl.DataFrame | pl.LazyFrame) -> pl.DataFrame 
             acceleration = magnitude_2d('ax', 'ay'),
         )
     )
+
+def calculate_elapsed_time(
+    ts: Union[str, pl.Expr] = 'ts', 
+    clock_state: Union[str, pl.Expr] = 'clock_state', 
+    over_cols: List[Union[str, pl.Expr]] = ['game_id', 'period']
+) -> pl.Expr:
+    
+    # Ensure inputs are expressions
+    ts_expr = pl.col(ts) if isinstance(ts, str) else ts
+    clock_expr = pl.col(clock_state) if isinstance(clock_state, str) else clock_state
+    
+    # Calculate the minimum timestamp for the period where the clock is running
+    period_start_ts = (
+        pl.when(clock_expr == 1)
+        .then(ts_expr)
+        .otherwise(None)
+        .min()
+        .over(over_cols)
+    )
+    
+    # Subtract the period start from the current timestamp
+    return ts_expr - period_start_ts

@@ -11,15 +11,21 @@ with app.setup:
     from plotnine import ggplot, aes, labs, geom_vline, geom_hline, theme_bw
 
     from data_readers import batch_read_events, batch_read_entity_tracking, batch_read_puck_tracking
-    from processing.tracking import derive_game_clock
-    from processing.events import add_flip
+    from processing.tracking import derive_game_clock, calculate_elapsed_time
+    from processing.events import add_flip, timecode_to_seconds
     from features.puck import calculate_shot_detection, evaluate_shot_detection
 
 
 @app.cell(hide_code=True)
 def _():
     events = batch_read_events("data/*/*_sapifullevents.json").pipe(add_flip)
-    shots = events.filter(c('name') == 'shot').sort(c('game_id', 'period', 'game_time')).with_row_index(name='shot_id')
+    shots = (
+        events
+        .with_columns(elapsed_time = timecode_to_seconds())
+        .filter(c('name') == 'shot')
+        .sort(c('game_id', 'period', 'game_time'))
+        .with_row_index(name='shot_id')
+    )
 
     player_tracking = batch_read_entity_tracking(
         "data/*/*_entity_tracking_processed_measurements.parquet"
@@ -31,10 +37,10 @@ def _():
 
     puck_tracking = (
         pl.concat([player_tracking, puck_tracking], how='diagonal_relaxed')
-        .pipe(derive_game_clock)
-        .filter(c('clock_state') == 1, c('entity_id') == '1')
-        .sort(c('game_id', 'period', 'game_time'))
-        .drop(c('entity_id', 'entity_official_id', 'segment_idx', 'clock_state', 'raw_x', 'raw_y', 'raw_z'))
+        .with_columns(elapsed_time = calculate_elapsed_time())
+        .filter(c('entity_id') == '1')
+        .sort(c('game_id', 'period', 'elapsed_time'))
+        .drop(c('entity_id', 'clock_state'))
     )
     return puck_tracking, shots
 
@@ -62,7 +68,7 @@ def _(shots_with_features):
 
 @app.cell
 def _(acc_slider, angle_slider, distance_slider, metrics):
-    mo.vstack([distance_slider, acc_slider, angle_slider, metrics]
+    mo.vstack([distance_slider, acc_slider, angle_slider, mo.ui.table(metrics)]
     )
     return
 
@@ -71,7 +77,7 @@ def _(acc_slider, angle_slider, distance_slider, metrics):
 def _(shots_with_features):
     timing_plot = (
         shots_with_features
-        .with_columns(timing_error = c('game_time') - c('shot_time'))
+        .with_columns(timing_error = c('elapsed_time') - c('shot_time'))
         >> ggplot(aes(x='timing_error'))
         + geom_vline(xintercept=0, linetype='dashed')
         + p9.geom_density(fill='lightblue', alpha=0.5)

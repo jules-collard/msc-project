@@ -13,8 +13,8 @@ with app.setup:
     from matplotlib import pyplot as plt
 
     from data_readers import read_events, batch_read_entity_tracking, batch_read_puck_tracking, batch_read_events
-    from processing.tracking import derive_game_clock, adjust_vectors, calculate_goal_vectors, calculate_magnitudes
-    from processing.events import add_flip
+    from processing.tracking import derive_game_clock, adjust_vectors, calculate_goal_vectors, calculate_magnitudes, calculate_elapsed_time
+    from processing.events import add_flip, timecode_to_seconds
     from features.puck import calculate_shot_detection
     from utils import distance_2d
 
@@ -29,7 +29,13 @@ def _():
 @app.cell
 def _(game_id_selector):
     events = batch_read_events(f"data/{game_id_selector.value}/*_sapifullevents.json").pipe(add_flip)
-    shots = events.filter(c('name') == 'shot').sort(c('game_id', 'period', 'game_time')).with_row_index(name='shot_id')
+    shots = (
+        events
+        .with_columns(elapsed_time = timecode_to_seconds())
+        .filter(c('name') == 'shot')
+        .sort(c('game_id', 'period', 'elapsed_time'))
+        .with_row_index(name='shot_id')
+    )
     return (shots,)
 
 
@@ -44,11 +50,13 @@ def _(game_id_selector):
     )
 
     puck_tracking = (
-        pl.concat([player_tracking, puck_tracking], how='diagonal_relaxed')
-        .pipe(derive_game_clock)
-        .filter(c('clock_state') == 1, c('entity_id') == '1')
-        .sort(c('game_id', 'game_time'))
-        .drop(c('entity_id', 'entity_official_id', 'segment_idx', 'clock_state', 'raw_x', 'raw_y', 'raw_z'))
+        puck_tracking
+        .with_columns(elapsed_time = calculate_elapsed_time())
+        .filter(
+            # c('clock_state') == 1,
+            c('entity_id') == '1'
+        )
+        .drop(c('entity_id', 'clock_state'))
     )
     return (puck_tracking,)
 
@@ -60,11 +68,11 @@ def _(puck_tracking, shots):
     shot_info = calculate_shot_detection(shots, puck_tracking, WINDOW_SIZE).collect()
 
     tracking_with_shots = (
-        puck_tracking.sort(c('game_id', 'period', 'game_time'))
+        puck_tracking.sort(c('game_id', 'period', 'elapsed_time'))
         .join_asof(
-            shots.sort(c('game_id', 'period', 'game_time')),
+            shots.sort(c('game_id', 'period', 'elapsed_time')),
             by=['game_id', 'period'],
-            on='game_time',
+            on='elapsed_time',
             strategy='nearest',
             tolerance=WINDOW_SIZE / 2,
             coalesce=False
@@ -94,7 +102,7 @@ def _(shot_info):
 @app.cell
 def _(id_selector, shot_info, shots, tracking_with_shots):
     sample = tracking_with_shots.filter(c('shot_id') == id_selector.value)
-    game_time = shots.filter(c('shot_id') == id_selector.value).select(c('game_time')).collect().item()
+    game_time = shots.filter(c('shot_id') == id_selector.value).select(c('elapsed_time')).collect().item()
     shot_logic = shot_info.filter(c('shot_id') == id_selector.value)
 
     shot_time = shot_logic.select(c('shot_time')).item()
@@ -127,7 +135,7 @@ def _(game_time, sample, shot_end_time, shot_speed, shot_time, speed_time):
     speed_plot = (
         ggplot(sample)
         + p9.geom_rect(xmin=shot_time, xmax=shot_end_time, ymin=-float('Inf'), ymax=float('Inf'), alpha=0.01)
-        + geom_line(aes(x='game_time', y='speed'))
+        + geom_line(aes(x='elapsed_time', y='speed'))
         + geom_vline(xintercept=game_time, color='red')
         + p9.labs(x='Game Time (s)', y='Speed (ft/s)')
         + custom_theme
@@ -136,7 +144,7 @@ def _(game_time, sample, shot_end_time, shot_speed, shot_time, speed_time):
     goal_speed_plot = (
         ggplot(sample)
         + p9.geom_rect(xmin=shot_time, xmax=shot_end_time, ymin=-float('Inf'), ymax=float('Inf'), alpha=0.01)
-        + geom_line(aes(x='game_time', y='goal_speed'))
+        + geom_line(aes(x='elapsed_time', y='goal_speed'))
         + geom_vline(xintercept=game_time, color='red')
         + p9.labs(x='Game Time (s)', y='Velocity Towards Goal (ft/s)')
         + custom_theme
@@ -145,7 +153,7 @@ def _(game_time, sample, shot_end_time, shot_speed, shot_time, speed_time):
     acc_plot = (
         ggplot(sample)
         + p9.geom_rect(xmin=shot_time, xmax=shot_end_time, ymin=-float('Inf'), ymax=float('Inf'), alpha=0.01)
-        + geom_line(aes(x='game_time', y='acceleration'))
+        + geom_line(aes(x='elapsed_time', y='acceleration'))
         + geom_vline(xintercept=game_time, color='red')
         + p9.labs(x='Game Time (s)', y='Acceleration (ft/s²)')
         + custom_theme
@@ -154,7 +162,7 @@ def _(game_time, sample, shot_end_time, shot_speed, shot_time, speed_time):
     goal_acc_plot = (
         ggplot(sample)
         + p9.geom_rect(xmin=shot_time, xmax=shot_end_time, ymin=-float('Inf'), ymax=float('Inf'), alpha=0.01)
-        + geom_line(aes(x='game_time', y='goal_acceleration'))
+        + geom_line(aes(x='elapsed_time', y='goal_acceleration'))
         + geom_vline(xintercept=game_time, color='red')
         + geom_hline(yintercept=0, color='grey')
         + p9.labs(x='Game Time (s)', y='Acc. Towards Goal (ft/s²)')
@@ -164,7 +172,7 @@ def _(game_time, sample, shot_end_time, shot_speed, shot_time, speed_time):
     angle_plot = (
         ggplot(sample)
         + p9.geom_rect(xmin=shot_time, xmax=shot_end_time, ymin=-float('Inf'), ymax=float('Inf'), alpha=0.01)
-        + geom_line(aes(x='game_time', y='angle_to_goal'))
+        + geom_line(aes(x='elapsed_time', y='angle_to_goal'))
         + geom_vline(xintercept=game_time, color='red')
         + p9.scale_y_continuous(limits=(-180, 180), breaks=[-180, -90, 0, 90, 180])
         + p9.labs(x='Game Time (s)', y='Angle to Goal (degrees)')
@@ -174,7 +182,7 @@ def _(game_time, sample, shot_end_time, shot_speed, shot_time, speed_time):
     angle_vel_plot = (
         ggplot(sample)
         + p9.geom_rect(xmin=shot_time, xmax=shot_end_time, ymin=-float('Inf'), ymax=float('Inf'), alpha=0.01)
-        + geom_line(aes(x='game_time', y='angle_vel'))
+        + geom_line(aes(x='elapsed_time', y='angle_vel'))
         + geom_vline(xintercept=game_time, color='red')
         + p9.labs(x='Game Time (s)', y='Angular Velocity (degrees/s)')
         + custom_theme
