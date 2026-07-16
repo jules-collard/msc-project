@@ -102,7 +102,12 @@ def calculate_shot_detection(
         ).with_columns(
             stop = ((c('frame_index') > c('shot_frame') + 5) & pl.any_horizontal(cs.ends_with('condition'))).over(c('shot_id'))
         ).with_columns( # Take first frame where stop condition is met, otherwise take last frame of shot trajectory
-            c('stop').arg_true().first().fill_null(c('frame_index').last()).over(c('shot_id')).alias('stop_frame')
+            (
+                c('stop').arg_true().first()
+                .fill_null(c('frame_index').filter(c('frame_index') > c('shot_frame')).last())
+                .over(c('shot_id'))
+                .alias('stop_frame')
+            )
         ).with_columns(
             masked_speed = pl.when(
                 # Only consider speed within shot window
