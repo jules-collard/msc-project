@@ -13,9 +13,9 @@ with app.setup:
     from matplotlib import pyplot as plt
 
     from data_readers import batch_read_puck_tracking, batch_read_events
-    from processing.tracking import adjust_vectors, calculate_goal_vectors, calculate_magnitudes, calculate_elapsed_time
+    from processing.tracking import adjust_vectors, calculate_magnitudes, calculate_elapsed_time
     from processing.events import extract_flip, timecode_to_seconds
-    from features.puck import calculate_shot_detection
+    from features.puck import calculate_shot_detection, calculate_goal_vectors
     from utils import distance_2d
 
 
@@ -79,7 +79,7 @@ def _(puck_tracking, shots):
         ).drop_nulls(c('shot_id'))
         .with_columns(adjust_vectors(c('x', 'y', 'vx', 'vy', 'ax', 'ay')))
         .collect()
-        .pipe(calculate_goal_vectors)
+        .with_columns(calculate_goal_vectors())
         .pipe(calculate_magnitudes)
         .with_columns(
             distance_2d('x_adj', 'y_adj', 'x_adj_coord', 'y_adj_coord').alias('dist_to_shot')

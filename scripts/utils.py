@@ -1,23 +1,44 @@
 import polars as pl
 from polars import col as c
 
-def distance_2d(x1_col: str, y1_col: str, x2_col: str, y2_col: str) -> pl.Expr:
+def distance_2d(
+    x1_expr: pl.Expr | str,
+    y1_expr: pl.Expr | str,
+    x2_expr: pl.Expr | str,
+    y2_expr: pl.Expr | str
+) -> pl.Expr:
     """Returns a Polars expression to calculate 2D Euclidean distance."""
+    x1_expr = c(x1_expr) if isinstance(x1_expr, str) else x1_expr
+    y1_expr = c(y1_expr) if isinstance(y1_expr, str) else y1_expr
+    x2_expr = c(x2_expr) if isinstance(x2_expr, str) else x2_expr
+    y2_expr = c(y2_expr) if isinstance(y2_expr, str) else y2_expr
+
     return (
-        (c(x1_col) - c(x2_col)).pow(2) + 
-        (c(y1_col) - c(y2_col)).pow(2)
+        (x1_expr - x2_expr).pow(2) + 
+        (y1_expr - y2_expr).pow(2)
     ).sqrt()
 
-def distance_to_point_2d(x_col: str, y_col: str, point_x: float, point_y: float) -> pl.Expr:
+def distance_to_point_2d(
+    x_expr: pl.Expr | str,
+    y_expr: pl.Expr | str,
+    point_x: float,
+    point_y: float
+) -> pl.Expr:
     """Returns a Polars expression to calculate 2D Euclidean distance to a fixed point."""
+    x_expr = c(x_expr) if isinstance(x_expr, str) else x_expr
+    y_expr = c(y_expr) if isinstance(y_expr, str) else y_expr
+
     return (
-        (c(x_col) - point_x).pow(2) + 
-        (c(y_col) - point_y).pow(2)
+        (x_expr - point_x).pow(2) + 
+        (y_expr - point_y).pow(2)
     ).sqrt()
 
-def magnitude_2d(vx_col: str, vy_col: str) -> pl.Expr:
+def magnitude_2d(vx_expr: pl.Expr | str, vy_expr: pl.Expr | str) -> pl.Expr:
     """Returns a Polars expression to calculate the magnitude of a 2D vector."""
-    return (c(vx_col).pow(2) + c(vy_col).pow(2)).sqrt()
+    vx_expr = c(vx_expr) if isinstance(vx_expr, str) else vx_expr
+    vy_expr = c(vy_expr) if isinstance(vy_expr, str) else vy_expr
+
+    return (vx_expr.pow(2) + vy_expr.pow(2)).sqrt()
 
 def project_y_to_goalline(x1_col: str, y1_col: str, x2_col: str, y2_col: str) -> pl.Expr:
     """Returns a polars expression to project a vector onto the goal line, returning the y-coordinate of the projection."""
