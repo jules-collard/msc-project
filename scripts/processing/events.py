@@ -52,46 +52,6 @@ def add_shot_info(events: pl.DataFrame | pl.LazyFrame) -> pl.DataFrame | pl.Lazy
         )
     )
 
-def add_pass_target(events: pl.DataFrame | pl.LazyFrame) -> pl.DataFrame | pl.LazyFrame:
-    """
-    Function to extract pass target location, whether successful or not.
-
-    Looks at all events following a pass (until the next pass), and extracts the x_coord and y_coord 
-    of either the corresponding reception or failedpasslocation event into pass_target_x_coord and pass_target_y_coord.
-    """
-    target_events = ['reception', 'failedpasslocation']
-    return (
-        events
-        .with_columns(
-            pass_group_id=(c('name') == 'pass').cum_sum().over('current_possession')
-        ).with_columns(
-            target_x_coord=pl.when(c('name').is_in(target_events)).then(c('x_coord')),
-            target_y_coord=pl.when(c('name').is_in(target_events)).then(c('y_coord'))
-        ).with_columns(
-            pass_target_x_coord=pl.when(c('name')=='pass').then(
-                c('target_x_coord').backward_fill().over(['current_possession', 'pass_group_id'])
-            ),
-            pass_target_y_coord=pl.when(c('name')=='pass').then(
-                c('target_y_coord').backward_fill().over(['current_possession', 'pass_group_id'])
-            )
-        ).drop(c('target_x_coord', 'target_y_coord', 'pass_group_id'))
-    )
-
-def add_carry_info(events: pl.DataFrame | pl.LazyFrame) -> pl.DataFrame | pl.LazyFrame:
-    """
-    Function to extract endpoint of carry events.
-
-    Not extensive - sometimes will be incorrect due to other events being present.
-    """
-
-    return (
-        events
-        .with_columns(
-            carry_target_x_coord=pl.when(c('name') == 'carry').then(c('x_coord').shift(-1)),
-            carry_target_y_coord=pl.when(c('name') == 'carry').then(c('y_coord').shift(-1))
-        )
-    )
-
 def remove_non_viz_events(events: pl.DataFrame | pl.LazyFrame) -> pl.DataFrame | pl.LazyFrame:
     """
     Function to remove events that are not useful for visualisation.
@@ -101,17 +61,6 @@ def remove_non_viz_events(events: pl.DataFrame | pl.LazyFrame) -> pl.DataFrame |
         .filter(
             c('name').is_in(['pressure', 'assist', 'goal', 'failedpasslocation', 'controlledentryagainst', 'dumpinagainst']).not_(),
             c('name').eq('faceoff').and_(c('zone').is_not_null()).not_(), # remove faceoff win/loss rows
-        )
-    )
-
-def add_flip(events: pl.DataFrame | pl.LazyFrame) -> pl.DataFrame | pl.LazyFrame:
-    """
-    Function to identify whether raw coordinates require flipping to recover adjusted coordinates.
-    """
-    return (
-        events
-        .with_columns(
-            flip = (c('x_coord').ne(c('x_adj_coord'))).or_(c('y_coord').ne(c('y_adj_coord')))
         )
     )
 

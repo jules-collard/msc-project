@@ -23,11 +23,13 @@ def derive_game_clock(tracking: pl.DataFrame | pl.LazyFrame) -> pl.DataFrame | p
         ).drop(c('delta'))
     )
 
-def convert_timestamps(tracking: pl.DataFrame | pl.LazyFrame) -> pl.DataFrame | pl.LazyFrame:
+def convert_timestamps(expr: pl.Expr | str) -> pl.Expr:
     """
     Function to convert ts field from UNIX epochs to DateTime format (only for legibility)
     """
-    return tracking.with_columns(pl.from_epoch(c("ts"), time_unit="s").alias("ts"))
+
+    expr = c(expr) if isinstance(expr, str) else expr
+    return pl.from_epoch(expr, time_unit="s")
 
 def adjust_vectors(expr: pl.Expr, flip_expr: pl.Expr = c('flip')) -> pl.Expr:
     """
