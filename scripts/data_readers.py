@@ -38,7 +38,7 @@ def batch_read_events(pattern: str, lazy=True, **kwargs) -> pl.DataFrame | pl.La
         .unnest('events')
         .with_columns(
             extract_game_id('source_path', '.*_sapifullevents.json'),
-            -c('y_coord', 'y_adj_coord'),
+            -c('y_coord', 'y_adj_coord'), # Event data y is flipped w.r.t. tracking data
             c('period').cast(pl.Int32),
         ).drop(c('source_path'))
     )

@@ -127,7 +127,8 @@ def join_tracking(
 
 def timecode_to_seconds(expr: pl.Expr | str = 'timecode') -> pl.Expr:
     """
-    Function to convert timecode string (MM:SS) to elapsed seconds from period start.
+    Function to convert timecode string (MM:SS) to elapsed seconds from period start. Can then be used
+    to join with tracking data via similar elapsed_time calculation.
     """
     if isinstance(expr, str):
         expr = c(expr)

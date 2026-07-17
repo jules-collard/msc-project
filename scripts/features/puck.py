@@ -63,6 +63,12 @@ def calculate_shot_detection(
 
     window_size: float, optional
         The size of the window (in seconds) to select tracking data for each shot. Default is 1.6 seconds.
+    distance_threshold: float, optional
+        The maximum distance (in feet) from the shot location to consider tracking data for the shot.
+    impact_acceleration_threshold: float, optional
+        The threshold for the goal acceleration to consider the shot as having been blocked/saved/deflected.
+    deflection_angle_threshold: float, optional
+        The threshold for the change in angle to consider the shot as having been deflected.
     """
 
     # Add shot details to corresponding puck tracking data, and calculate features

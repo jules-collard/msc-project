@@ -47,6 +47,10 @@ def calculate_elapsed_time(
     clock_state: Union[str, pl.Expr] = 'clock_state', 
     over_cols: List[Union[str, pl.Expr]] = ['game_id', 'period']
 ) -> pl.Expr:
+    """
+    Function to calculate total elapsed time since the start of the period, including stoppages. Resulting
+    column can then be used to join with events via timecodes.
+    """
     
     # Ensure inputs are expressions
     ts_expr = pl.col(ts) if isinstance(ts, str) else ts
