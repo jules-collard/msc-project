@@ -59,6 +59,7 @@ def project_y_to_goalline(x1_col: str, y1_col: str, x2_col: str, y2_col: str) ->
         .then(
             c(y1_col) + (delta_y / delta_x) * (GOAL_X - c(x1_col))
         ).otherwise(None)
+        .clip(-42.5, 42.5) # Clip to avoid obscenely large projections for shots almost parallel to the goal line
         .alias('goalline_y')
     )
 
