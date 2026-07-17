@@ -13,7 +13,8 @@ with app.setup:
     from data_readers import batch_read_events, batch_read_puck_tracking
     from processing.tracking import calculate_elapsed_time
     from processing.events import extract_flip, timecode_to_seconds
-    from features.puck import calculate_shot_detection, evaluate_shot_detection
+    from post_shot.detection import calculate_shot_detection
+    from post_shot.evaluation import evaluate_shot_detection
 
 
 @app.cell
