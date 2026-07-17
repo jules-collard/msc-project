@@ -17,7 +17,7 @@ with app.setup:
     from processing.events import extract_flip, timecode_to_seconds
     from post_shot.detection import calculate_shot_detection
     from post_shot.geometry import goal_vectors
-    from post_shot.features import shot_features
+    from post_shot.features import shot_features, PostShotData
     from utils import distance_2d, magnitude_2d
 
 
@@ -30,53 +30,27 @@ def _():
 
 @app.cell
 def _(game_id_selector):
-    events = (
-        batch_read_events(f"data/{game_id_selector.value}/*_sapifullevents.json")
-        .with_columns(extract_flip())
-    )
+    events =batch_read_events(f"data/{game_id_selector.value}/*_sapifullevents.json")
 
-    shots = (
-        events
-        .with_columns(elapsed_time = timecode_to_seconds())
-        .filter(c('name') == 'shot')
-        .sort(c('game_id', 'period', 'elapsed_time'))
-        .with_row_index(name='shot_id')
-    )
-    return (shots,)
-
-
-@app.cell
-def _(game_id_selector):
     puck_tracking = batch_read_puck_tracking(
         f"data/{game_id_selector.value}/HOCKEY_NHL_*_Period_*.parquet",
     )
 
-    puck_tracking = (
-        puck_tracking
-        .with_columns(elapsed_time = calculate_elapsed_time())
-        .filter(
-            # c('clock_state') == 1,
-            c('entity_id') == '1'
-        )
-        .drop(c('entity_id', 'clock_state'))
-    )
-    return (puck_tracking,)
+    post_shot_data = PostShotData(events, puck_tracking)
+    return (post_shot_data,)
 
 
 @app.cell
-def _(puck_tracking, shots):
+def _(post_shot_data):
     WINDOW_SIZE = 1.6
 
-    shot_info = (
-        calculate_shot_detection(shots, puck_tracking, WINDOW_SIZE)
-        .with_columns(shot_features())
-        .collect()
-    )
+    shot_info = post_shot_data.with_features().collect()
 
     tracking_with_shots = (
-        puck_tracking.sort(c('game_id', 'period', 'elapsed_time'))
+        post_shot_data.puck_tracking_prepared
+        .sort(c('game_id', 'period', 'elapsed_time'))
         .join_asof(
-            shots.sort(c('game_id', 'period', 'elapsed_time')),
+            post_shot_data.shots.sort(c('game_id', 'period', 'elapsed_time')),
             by=['game_id', 'period'],
             on='elapsed_time',
             strategy='nearest',
@@ -106,9 +80,9 @@ def _(shot_info):
 
 
 @app.cell
-def _(id_selector, shot_info, shots, tracking_with_shots):
+def _(id_selector, post_shot_data, shot_info, tracking_with_shots):
     sample = tracking_with_shots.filter(c('shot_id') == id_selector.value)
-    game_time = shots.filter(c('shot_id') == id_selector.value).select(c('elapsed_time')).collect().item()
+    game_time = post_shot_data.shots.filter(c('shot_id') == id_selector.value).select(c('elapsed_time')).collect().item()
     shot_logic = shot_info.filter(c('shot_id') == id_selector.value)
 
     shot_time = shot_logic.select(c('shot_time')).item()
