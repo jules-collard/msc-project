@@ -13,11 +13,9 @@ with app.setup:
     from matplotlib import pyplot as plt
 
     from data_readers import batch_read_puck_tracking, batch_read_events
-    from processing.tracking import adjust_vectors, calculate_elapsed_time
-    from processing.events import extract_flip, timecode_to_seconds
-    from post_shot.detection import calculate_shot_detection
+    from processing.tracking import adjust_vectors
     from post_shot.geometry import goal_vectors
-    from post_shot.features import shot_features, PostShotData
+    from post_shot.features import PostShotData
     from utils import distance_2d, magnitude_2d
 
 

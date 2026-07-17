@@ -75,7 +75,7 @@ class PostShotData:
     
     def detect_shots(self) -> pl.LazyFrame:
         """
-        Detects shots by joining the shots dataframe with the puck tracking dataframe and calculating detection results.
+        Returns results of shot detection algorithm, using specified parameters.
         """
         return calculate_shot_detection(
             self.shots,
@@ -88,20 +88,22 @@ class PostShotData:
     
     def with_features(self) -> pl.LazyFrame:
         """
-        Returns a LazyFrame with detected shots and their corresponding post-shot features.
+        Returns results of shot detection, with derived post-shot features.
         """
         return self.detect_shots().with_columns(shot_features())
     
     def evaluate(self) -> pl.LazyFrame:
+        """
+        Returns evaluation metrics for the shot detection algorithm.
+        """
         return evaluate_shot_detection(self.full_output())
     
     def full_output(self) -> pl.LazyFrame:
         """
-        Returns a LazyFrame with all relevant shot information, including shot details, detection results, and post-shot features.
+        Returns all relevant shot information, including shot details, detection results, and post-shot features.
         """
 
         detected = self.with_features()
-
         return (
             self.shots
             .select(
@@ -118,7 +120,7 @@ class PostShotData:
     
     def model_input(self) -> pl.LazyFrame:
         """
-        Returns a LazyFrame with the necessary features for model input, including shot speed, on-goal status, and distances to various goal locations.
+        Returns a LazyFrame with the necessary features for model input.
         Only includes shots that were detected and are from the offensive zone (x >= 25).
         """
         return (
