@@ -15,8 +15,8 @@ with app.setup:
     from data_readers import batch_read_puck_tracking, batch_read_events
     from processing.tracking import adjust_vectors, calculate_elapsed_time
     from processing.events import extract_flip, timecode_to_seconds
-    from features.puck import calculate_shot_detection, calculate_goal_vectors
-    from utils import distance_2d, magnitude_2d
+    from features.puck import calculate_shot_detection, calculate_goal_vectors, shot_features
+    from utils import distance_2d, magnitude_2d, distance_to_point_2d
 
 
 @app.cell
@@ -65,7 +65,11 @@ def _(game_id_selector):
 def _(puck_tracking, shots):
     WINDOW_SIZE = 1.6
 
-    shot_info = calculate_shot_detection(shots, puck_tracking, WINDOW_SIZE).collect()
+    shot_info = (
+        calculate_shot_detection(shots, puck_tracking, WINDOW_SIZE)
+        .with_columns(shot_features())
+        .collect()
+    )
 
     tracking_with_shots = (
         puck_tracking.sort(c('game_id', 'period', 'elapsed_time'))
@@ -302,6 +306,51 @@ def _(custom_theme, shot_logic):
         + p9.geom_point(
             aes(x='goalline_y', y='goalline_z'), size=5,
             data=shot_logic,
+        )
+        # Feature Illustrations
+        + p9.geom_segment(
+            # Distance to Nearest Top Corner
+            aes(x='goalline_y', xend='nearest_post_y', y='goalline_z', yend=4),
+            data=shot_logic,
+            linetype="dotted"
+        ) + p9.geom_segment(
+            # Distance to Nearest Post
+            aes(x='goalline_y', xend='nearest_post_y', y='goalline_z', yend='goalline_z'),
+            data=shot_logic,
+            linetype="dotted"
+        )+ p9.geom_segment(
+            # Distance to Center
+            aes(x='goalline_y', xend=0, y='goalline_z', yend=2),
+            data=shot_logic,
+            linetype="dotted"
+        ) + p9.geom_text(
+            aes(x='goalline_y', y='goalline_z', label='shot_speed'),
+            data=shot_logic,
+            nudge_y=-0.5,
+            size=8,
+            color='blue',
+            format_string='{:.1f}ft/s'
+        ) + p9.geom_text(
+            aes(x='nearest_post_y', y=4, label='dist_to_top_corner'),
+            data=shot_logic,
+            nudge_y=0.2,
+            size=8,
+            color='blue',
+            format_string='{:.1f}ft'
+        ) + p9.geom_text(
+            aes(x='nearest_post_y', y='goalline_z', label='dist_to_post'),
+            data=shot_logic,
+            nudge_x=0.4,
+            size=8,
+            color='blue',
+            format_string='{:.1f}ft'
+        ) + p9.geom_text(
+            aes(x=0, y=2, label='dist_to_center'),
+            data=shot_logic,
+            nudge_y=0.2,
+            size=8,
+            color='blue',
+            format_string='{:.1f}ft'
         )
         + custom_theme
         + p9.theme(title=p9.element_blank(), axis_title=p9.element_blank())
