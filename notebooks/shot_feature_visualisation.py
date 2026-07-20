@@ -51,6 +51,22 @@ def _(PostShotData, events, puck_tracking):
 
 
 @app.cell
+def _(aes, ggplot, labs, model_data, p9, theme_bw):
+    (
+        model_data
+        >> ggplot(aes(x='goal', y='shot_speed', fill='goal'))
+        + p9.geom_violin(show_legend=False)
+        + p9.geom_sina(alpha=0.2, show_legend=False)
+        + p9.scale_x_discrete(labels=["No Goal", "Goal"])
+        + p9.coord_flip()
+        + labs(title="Distribution of Shot Speed by Goal Outcome",
+              x="", y="Shot Speed (ft/s)")
+        + theme_bw()
+    )
+    return
+
+
+@app.cell
 def _(aes, c, ggplot, labs, model_data, p9, percent_format, pl, theme_bw):
     grid_size=1
 
