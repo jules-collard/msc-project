@@ -52,12 +52,6 @@ def _(PostShotData, events, puck_tracking):
 
 
 @app.cell
-def _(model_data):
-    model_data.drop('flags').write_csv('data/post_shot_data_sample.csv')
-    return
-
-
-@app.cell
 def _(aes, ggplot, labs, model_data, p9, theme_bw):
     (
         model_data
