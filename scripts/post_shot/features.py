@@ -1,9 +1,10 @@
-from typing import List
+from typing import List, Tuple
 from dataclasses import dataclass
 from functools import cached_property
 
 import polars as pl
 from polars import col as c
+import numpy as np
 
 from processing.events import timecode_to_seconds, extract_flip
 from processing.tracking import calculate_elapsed_time
@@ -45,7 +46,10 @@ class PostShotData:
             )
             .filter(c('name') == 'shot')
             .sort(c('game_id'), c('period'), c('elapsed_time'))
-            .with_row_index(name='shot_id')
+            .with_columns(
+                c('expected_goals_all_shots').cast(pl.Float32),
+                goal = c('flags').list.contains('withgoal')
+            ).with_row_index(name='shot_id')
         )
 
     @cached_property
@@ -110,27 +114,40 @@ class PostShotData:
                 c('game_id'), c('period'), c('game_time'), c('elapsed_time'), c('shot_id'),
                 c('team'), c('player_first_name'), c('player_last_name'), c('player_reference_id'),
                 c('x_adj_coord'), c('y_adj_coord'), c('expected_goals_all_shots').alias('pre_shot_xg'),
-                c('type'), c('outcome'), c('flags')
+                c('type'), c('outcome'), c('flags'), c('goal')
             ).join(
                 detected,
                 on='shot_id',
                 how='left'
             )
         )
-    
-    def model_input(self) -> pl.LazyFrame:
-        """
-        Returns a LazyFrame with the necessary features for model input.
-        Only includes shots that were detected and are from the offensive zone (x >= 25).
-        """
+
+    def model_data(self) -> pl.LazyFrame:
         return (
-            self.with_features()
+            self.full_output()
             .drop_nulls(c('shot_speed')) # Only keep shots with valid speed (i.e. shots that were detected)
             .filter(
                 c('shot_x') >= 25 # Only o-zone shots
             )
-            .select(c('shot_id', 'shot_speed', 'on_goal', 'dist_to_post', 'dist_to_crossbar', 'dist_to_top_corner', 'dist_to_center'))
         )
+    
+    def model_input(self) -> Tuple[pl.DataFrame, np.ndarray, np.ndarray]:
+        """
+        Returns a LazyFrame with the necessary features for model input.
+        Only includes shots that were detected and are from the offensive zone (x >= 25).
+        """
+        data = self.model_data()
+        ids = data.select(c('shot_id')).collect()
+        X = (
+            PostShotData
+            .select(c('pre_shot_xg', 'shot_speed', 'on_goal', 'dist_to_post', 'dist_to_crossbar', 'dist_to_top_corner', 'dist_to_center'))
+            .collect()
+            .to_numpy()
+        )
+        y = data.select(c('goal').cast(pl.Int8)).collect().to_numpy().flatten()
+
+        return ids, X, y
+
 
 
 def shot_features() -> List[pl.Expr]:
