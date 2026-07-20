@@ -22,6 +22,7 @@ def _():
         batch_read_events,
         batch_read_puck_tracking,
         c,
+        cs,
         ggplot,
         labs,
         p9,
@@ -48,6 +49,12 @@ def _(PostShotData, events, puck_tracking):
     post_shot_data = PostShotData(events, puck_tracking)
     model_data = post_shot_data.model_data().collect()
     return (model_data,)
+
+
+@app.cell
+def _(model_data):
+    model_data.drop('flags').write_csv('data/post_shot_data_sample.csv')
+    return
 
 
 @app.cell
@@ -203,6 +210,31 @@ def _(aes, ggplot, labs, model_data, p9, theme_bw):
         + p9.ylim(0, 20)
         + labs(title="Distribution of Shot Distance to Goal Center by Goal Outcome",
               x="", y="Distance to Goal Center (ft)")
+        + p9.theme(legend_position="none")
+        + theme_bw()
+    )
+    return
+
+
+@app.cell
+def _(aes, c, cs, ggplot, labs, model_data, p9, theme_bw):
+    (
+        model_data
+        .select(c('goal'), cs.starts_with('polar_angle'))
+        .unpivot(on=cs.starts_with('polar_angle'), index='goal', value_name='angle', variable_name='angle_type')
+        .with_columns(c('angle_type').replace({
+            'polar_angle_abs': 'Symmetric',
+            'polar_angle_near_post': 'Near Post',
+            'polar_angle_raw': 'Static'
+        }))
+        >> ggplot(aes(x='goal', y='angle', fill='goal'))
+        + p9.geom_violin(show_legend=False)
+        + p9.geom_jitter(alpha=0.2, show_legend=False)
+        + p9.facet_wrap('angle_type')
+        + p9.coord_flip()
+        + p9.scale_x_discrete(labels=["No Goal", "Goal"])
+        + labs(title="Distribution of Shot Angles by Reference Point",
+              x="", y="Angle (Degrees)")
         + p9.theme(legend_position="none")
         + theme_bw()
     )

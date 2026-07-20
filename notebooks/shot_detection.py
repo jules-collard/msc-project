@@ -325,6 +325,12 @@ def _(custom_theme, shot_logic):
             size=8,
             color='blue',
             format_string='{:.1f}ft'
+        ) + p9.geom_text(
+            aes(x=0, y=0.1, label='polar_angle'),
+            data=shot_logic,
+            size=8,
+            color='blue',
+            format_string='{:.1f}°'
         )
         + custom_theme
         + p9.theme(title=p9.element_blank(), axis_title=p9.element_blank())
