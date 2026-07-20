@@ -62,20 +62,6 @@ class PostShotData:
             )
             .drop(c('entity_id'), c('clock_state'))
         )
-
-    def prepare_shots(self) -> pl.LazyFrame:
-        """
-        Prepares the shots dataframe by filtering for shot events and adding necessary columns.
-        Returns a LazyFrame with shot events and their corresponding shot_id.
-        """
-        return self.shots
-    
-    def prepare_puck_tracking(self) -> pl.LazyFrame:
-        """
-        Prepares the puck tracking dataframe by filtering for puck tracking data and adding necessary columns.
-        Returns a LazyFrame with puck tracking data.
-        """
-        return self.puck_tracking_prepared
     
     def detect_shots(self) -> pl.LazyFrame:
         """
@@ -90,13 +76,13 @@ class PostShotData:
             deflection_angle_threshold=self.deflection_angle_threshold
         )
     
-    def with_features(self) -> pl.LazyFrame:
+    def post_shot_features(self) -> pl.LazyFrame:
         """
         Returns results of shot detection, with derived post-shot features.
         """
         return self.detect_shots().with_columns(shot_features())
     
-    def evaluate(self) -> pl.LazyFrame:
+    def evaluate_detection(self) -> pl.LazyFrame:
         """
         Returns evaluation metrics for the shot detection algorithm.
         """
@@ -107,7 +93,7 @@ class PostShotData:
         Returns all relevant shot information, including shot details, detection results, and post-shot features.
         """
 
-        detected = self.with_features()
+        detected = self.post_shot_features()
         return (
             self.shots
             .select(
@@ -133,13 +119,19 @@ class PostShotData:
     
     def model_input(self) -> Tuple[pl.DataFrame, np.ndarray, np.ndarray]:
         """
-        Returns a LazyFrame with the necessary features for model input.
-        Only includes shots that were detected and are from the offensive zone (x >= 25).
+        Returns a LazyFrame with the necessary features for model input. Only includes shots that were
+        detected and are from the offensive zone (x >= 25).
+
+        Returns:
+        Tuple[pl.DataFrame, np.ndarray, np.ndarray]: A tuple containing:
+            - A polars DataFrame with shot IDs
+            - A NumPy array with the feature values (X).
+            - A NumPy array with the target variable (y), indicating whether the shot resulted in a goal (1) or not (0).
         """
         data = self.model_data()
         ids = data.select(c('shot_id')).collect()
         X = (
-            PostShotData
+            data
             .select(c('pre_shot_xg', 'shot_speed', 'on_goal', 'dist_to_post', 'dist_to_crossbar', 'dist_to_top_corner', 'dist_to_center'))
             .collect()
             .to_numpy()
@@ -147,7 +139,6 @@ class PostShotData:
         y = data.select(c('goal').cast(pl.Int8)).collect().to_numpy().flatten()
 
         return ids, X, y
-
 
 
 def shot_features() -> List[pl.Expr]:

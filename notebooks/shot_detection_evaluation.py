@@ -42,7 +42,7 @@ def _():
 @app.cell
 def _(acc_slider, angle_slider, distance_slider, events, puck_tracking):
     post_shot_data = PostShotData(events, puck_tracking, distance_threshold=distance_slider.value, impact_acceleration_threshold=acc_slider.value, deflection_angle_threshold=angle_slider.value)
-    metrics = post_shot_data.evaluate().collect()
+    metrics = post_shot_data.evaluate_detection().collect()
     return metrics, post_shot_data
 
 

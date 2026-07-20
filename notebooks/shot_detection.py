@@ -42,7 +42,7 @@ def _(game_id_selector):
 def _(post_shot_data):
     WINDOW_SIZE = 1.6
 
-    shot_info = post_shot_data.with_features().collect()
+    shot_info = post_shot_data.post_shot_features().collect()
 
     tracking_with_shots = (
         post_shot_data.puck_tracking_prepared
@@ -325,12 +325,6 @@ def _(custom_theme, shot_logic):
             size=8,
             color='blue',
             format_string='{:.1f}ft'
-        ) + p9.geom_text(
-            aes(x=0, y=0.1, label='polar_angle'),
-            data=shot_logic,
-            size=8,
-            color='blue',
-            format_string='{:.1f}°'
         )
         + custom_theme
         + p9.theme(title=p9.element_blank(), axis_title=p9.element_blank())
