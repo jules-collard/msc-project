@@ -10,7 +10,7 @@ with app.setup:
     import plotnine as p9
     from plotnine import ggplot, aes, labs, geom_vline, geom_hline, theme_bw
 
-    from data_readers import batch_read_events, batch_read_puck_tracking
+    from data_readers import batch_read_events, batch_read_puck_tracking, batch_read_entity_tracking, read_id_mapping
     from post_shot.features import PostShotData
 
 
@@ -28,7 +28,13 @@ def _(game_id_selector):
     puck_tracking = batch_read_puck_tracking(
         f"data/{game_id_selector.value}/HOCKEY_NHL_*_Period_*.parquet",
     )
-    return events, puck_tracking
+
+    player_tracking = batch_read_entity_tracking(
+        f"data/{game_id_selector.value}/*_processed_measurements.parquet"
+    )
+
+    mapping = read_id_mapping("data/NHL_20252026_player_sportlogiq_id_map.csv")
+    return events, mapping, player_tracking, puck_tracking
 
 
 @app.cell
@@ -40,8 +46,16 @@ def _():
 
 
 @app.cell
-def _(acc_slider, angle_slider, distance_slider, events, puck_tracking):
-    post_shot_data = PostShotData(events, puck_tracking, distance_threshold=distance_slider.value, impact_acceleration_threshold=acc_slider.value, deflection_angle_threshold=angle_slider.value)
+def _(
+    acc_slider,
+    angle_slider,
+    distance_slider,
+    events,
+    mapping,
+    player_tracking,
+    puck_tracking,
+):
+    post_shot_data = PostShotData(events, puck_tracking, player_tracking, mapping, distance_threshold=distance_slider.value, impact_acceleration_threshold=acc_slider.value, deflection_angle_threshold=angle_slider.value)
     metrics = post_shot_data.evaluate_detection().collect()
     return metrics, post_shot_data
 

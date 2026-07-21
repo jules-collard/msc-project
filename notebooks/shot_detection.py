@@ -12,9 +12,9 @@ with app.setup:
     from hockey_rink import NHLRink
     from matplotlib import pyplot as plt
 
-    from data_readers import batch_read_puck_tracking, batch_read_events
+    from data_readers import batch_read_puck_tracking, batch_read_events, batch_read_entity_tracking, read_id_mapping
     from processing.tracking import adjust_vectors
-    from post_shot.geometry import goal_vectors
+    from post_shot.geometry import goal_vectors, project_vector
     from post_shot.features import PostShotData
     from utils import distance_2d, magnitude_2d
 
@@ -34,33 +34,53 @@ def _(game_id_selector):
         f"data/{game_id_selector.value}/HOCKEY_NHL_*_Period_*.parquet",
     )
 
-    post_shot_data = PostShotData(events, puck_tracking)
-    return (post_shot_data,)
+    player_tracking = batch_read_entity_tracking(
+        f"data/{game_id_selector.value}/*_processed_measurements.parquet"
+    )
+
+    mapping = read_id_mapping("data/NHL_20252026_player_sportlogiq_id_map.csv")
+
+    post_shot_data = PostShotData(events, puck_tracking, player_tracking, mapping)
+    return player_tracking, post_shot_data
 
 
 @app.cell
-def _(post_shot_data):
-    WINDOW_SIZE = 1.6
+def _(player_tracking, post_shot_data):
+    window_size = 1.6
 
     shot_info = post_shot_data.post_shot_features().collect()
 
     tracking_with_shots = (
-        post_shot_data.puck_tracking_prepared
-        .sort(c('game_id', 'period', 'elapsed_time'))
+        post_shot_data.puck_tracking_prepared.sort(c('game_id', 'period', 'elapsed_time'))
         .join_asof(
             post_shot_data.shots.sort(c('game_id', 'period', 'elapsed_time')),
             by=['game_id', 'period'],
             on='elapsed_time',
             strategy='nearest',
-            tolerance=WINDOW_SIZE / 2,
+            tolerance=window_size / 2,
             coalesce=False
-        ).drop_nulls(c('shot_id'))
-        .with_columns(adjust_vectors(c('x', 'y', 'vx', 'vy', 'ax', 'ay')))
-        .with_columns(
-            goal_vectors(),
+        ).drop_nulls(c('shot_id')) # Remove tracking outside of shot window
+        .sort(c('game_id', 'period', 'entity_official_id', 'ts'))
+        .join_asof( # Add shooter tracking data
+            player_tracking.sort(c('game_id', 'period', 'entity_official_id', 'ts')),
+            by=['game_id', 'period', 'entity_official_id'],
+            on='ts',
+            strategy='backward',
+            tolerance=0.15,
+            coalesce=False,
+            suffix='_player'
+        ).drop_nulls(c('entity_id')) # Remove tracking outside of shot window
+        .with_columns(adjust_vectors(c(
+            'x', 'y', 'vx', 'vy', 'ax', 'ay',
+            'x_player', 'y_player', 'vx_player', 'vy_player', 'ax_player', 'ay_player'
+        ))).with_columns(
+            goal_vectors()
+        ).with_columns(
+            project_vector('ax', 'ay', 'x_player_adj', 'y_player_adj', 'x_adj', 'y_adj').alias('acc_away_from_shooter'),
             speed = magnitude_2d('vx', 'vy'),
             acceleration = magnitude_2d('ax', 'ay'),
-            dist_to_shot = distance_2d('x_adj', 'y_adj', 'x_adj_coord', 'y_adj_coord')
+            dist_to_shot = distance_2d('x_adj', 'y_adj', 'x_adj_coord', 'y_adj_coord'),
+            dist_to_shooter = distance_2d('x_adj', 'y_adj', 'x_player_adj', 'y_player_adj')
         ).with_columns(
             angle_vel = c('angle_to_goal').diff().over(c('shot_id'))
         ).collect()
@@ -166,6 +186,15 @@ def _(game_time, sample, shot_end_time, shot_speed, shot_time, speed_time):
         + custom_theme
     )
 
+    shooter_acc_plot = (
+        ggplot(sample)
+        + p9.geom_rect(xmin=shot_time, xmax=shot_end_time, ymin=-float('Inf'), ymax=float('Inf'), alpha=0.01)
+        + geom_line(aes(x='elapsed_time', y='dist_to_shooter'))
+        + geom_vline(xintercept=game_time, color='red')
+        + p9.labs(x='Game Time (s)', y='Acceleration Away from Shooter (ft/s²)')
+        + custom_theme
+    )
+
     if logic_exists:
         shot_time_marker = geom_vline(xintercept=shot_time, linetype='dashed', color='blue')
 
@@ -181,13 +210,15 @@ def _(game_time, sample, shot_end_time, shot_speed, shot_time, speed_time):
         angle_plot += shot_time_marker
 
         angle_vel_plot += shot_time_marker
+
+        shooter_acc_plot += shot_time_marker
     return (
         acc_plot,
         angle_plot,
-        angle_vel_plot,
         custom_theme,
         goal_acc_plot,
         goal_speed_plot,
+        shooter_acc_plot,
         speed_plot,
     )
 
@@ -203,6 +234,15 @@ def _(sample, shot_logic):
         sample.select(c('y_adj')),
         s=10,
         alpha=0.5,
+        draw_kw={'display_range': 'ozone', 'rotation': 90}
+    )
+
+    rink.scatter(
+        sample.select(c('x_player_adj')),
+        sample.select(c('y_player_adj')),
+        s=10,
+        alpha=0.5,
+        c='yellow',
         draw_kw={'display_range': 'ozone', 'rotation': 90}
     )
 
@@ -336,19 +376,19 @@ def _(custom_theme, shot_logic):
 def _(
     acc_plot,
     angle_plot,
-    angle_vel_plot,
     ax,
     goal_acc_plot,
     goal_speed_plot,
     id_selector,
     rink,
+    shooter_acc_plot,
     shot_plot,
     speed_plot,
 ):
     mo.vstack([
         id_selector,
         mo.hstack([shot_plot, rink.draw(ax=ax, display_range="ozone", rotation=90)], widths="equal"),
-        (speed_plot | acc_plot | angle_plot) / (goal_speed_plot | goal_acc_plot | angle_vel_plot)
+        (speed_plot | acc_plot | angle_plot) / (goal_speed_plot | goal_acc_plot | shooter_acc_plot)
     ])
     return
 

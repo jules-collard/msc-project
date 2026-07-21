@@ -31,6 +31,8 @@ class PostShotData:
 
     events: pl.LazyFrame
     puck_tracking: pl.LazyFrame
+    player_tracking: pl.LazyFrame
+    mapping: dict[str, str]
     window_size: float = 1.6
     distance_threshold: float = 8
     impact_acceleration_threshold: float = -800
@@ -50,6 +52,7 @@ class PostShotData:
                 c('expected_goals_all_shots').cast(pl.Float32),
                 goal = c('flags').list.contains('withgoal')
             ).with_row_index(name='shot_id')
+            .with_columns(c('player_reference_id').replace_strict(self.mapping, default=None).alias('entity_official_id'))
         )
 
     @cached_property
@@ -63,6 +66,13 @@ class PostShotData:
             .drop(c('entity_id'), c('clock_state'))
         )
     
+    @cached_property
+    def player_tracking_prepared(self) -> pl.LazyFrame:
+        return (
+            self.player_tracking
+            .drop(c('clock_state'))
+        )
+    
     def detect_shots(self) -> pl.LazyFrame:
         """
         Returns results of shot detection algorithm, using specified parameters.
@@ -70,6 +80,7 @@ class PostShotData:
         return calculate_shot_detection(
             self.shots,
             self.puck_tracking_prepared,
+            self.player_tracking_prepared,
             window_size=self.window_size,
             distance_threshold=self.distance_threshold,
             impact_acceleration_threshold=self.impact_acceleration_threshold,

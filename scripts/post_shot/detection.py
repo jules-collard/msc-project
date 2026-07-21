@@ -2,13 +2,14 @@ import polars as pl
 from polars import col as c
 from polars import selectors as cs
 
-from post_shot.geometry import goal_vectors, project_y_to_goalline, project_z_to_goalline
+from post_shot.geometry import goal_vectors, project_vector, project_y_to_goalline, project_z_to_goalline
 from processing.tracking import adjust_vectors
 from utils import magnitude_2d, distance_2d
 
 def calculate_shot_detection(
         shots: pl.DataFrame | pl.LazyFrame,
         puck_tracking: pl.DataFrame | pl.LazyFrame,
+        player_tracking: pl.DataFrame | pl.LazyFrame,
         window_size: float = 1.6,
         distance_threshold: float = 8,
         impact_acceleration_threshold: float = -800,
@@ -16,7 +17,8 @@ def calculate_shot_detection(
 ) -> pl.DataFrame | pl.LazyFrame:
     """
     Calculates puck tracking features for each shot. Shots dataframe should be events-type dataframe, filtered
-    to only include shots, with a 'shot_id' column, which must be unique across ENTIRE (loaded) dataset. Tracking
+    to only include shots, with a 'shot_id' column, which must be unique across ENTIRE (loaded) dataset. Should
+    also have entity_official_id column, which is the sportlogiq player_reference_id mapped to NHL IDs. Tracking
     dataframe should only contain puck tracking data, with game clock derived.
 
     window_size: float, optional
@@ -39,13 +41,28 @@ def calculate_shot_detection(
             strategy='nearest',
             tolerance=window_size / 2,
             coalesce=False
-        ).drop_nulls(c('shot_id'))
-        .with_columns(adjust_vectors(c('x', 'y', 'vx', 'vy', 'ax', 'ay')))
-        .with_columns(
-            goal_vectors(),
+        ).drop_nulls(c('shot_id')) # Remove tracking outside of shot window
+        .sort(c('game_id', 'period', 'entity_official_id', 'ts'))
+        .join_asof( # Add shooter tracking data
+            player_tracking.sort(c('game_id', 'period', 'entity_official_id', 'ts')),
+            by=['game_id', 'period', 'entity_official_id'],
+            on='ts',
+            strategy='backward',
+            tolerance=0.15,
+            coalesce=False,
+            suffix='_player'
+        ).drop_nulls(c('entity_id')) # Remove tracking outside of shot window
+        .with_columns(adjust_vectors(c(
+            'x', 'y', 'vx', 'vy', 'ax', 'ay',
+            'x_player', 'y_player', 'vx_player', 'vy_player', 'ax_player', 'ay_player'
+        ))).with_columns(
+            goal_vectors()
+        ).with_columns(
+            project_vector('ax', 'ay', 'x_player_adj', 'y_player_adj', 'x_adj', 'y_adj').alias('acc_away_from_shooter'),
             speed = magnitude_2d('vx', 'vy'),
             acceleration = magnitude_2d('ax', 'ay'),
-            dist_to_shot = distance_2d('x_adj', 'y_adj', 'x_adj_coord', 'y_adj_coord')
+            dist_to_shot = distance_2d('x_adj', 'y_adj', 'x_adj_coord', 'y_adj_coord'),
+            dist_to_shooter = distance_2d('x_adj', 'y_adj', 'x_player_adj', 'y_player_adj')
         ).with_columns(
             angle_vel = c('angle_to_goal').diff().over(c('shot_id'))
         )
@@ -61,6 +78,7 @@ def calculate_shot_detection(
             & (c('angle_to_goal').abs() <= 90)
             & (c('goal_speed') > 0)
             & (c('goal_acceleration') > 0)
+            & (c('dist_to_shooter') < 5)
         ).with_columns(
             masked_acceleration = pl.when(c('valid_shot_frame')).then(c('acceleration')).otherwise(None)
         ).with_columns( # Identify frame where shot occurs
