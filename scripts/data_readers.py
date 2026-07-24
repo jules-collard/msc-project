@@ -1,10 +1,5 @@
-import json
-
-import ijson
 import polars as pl
 from polars import col as c
-
-from parquet_helpers import EntityTrackingReader
 
 
 def batch_read_events(*patterns: str, lazy=True, **kwargs) -> pl.DataFrame | pl.LazyFrame:
@@ -66,12 +61,15 @@ def batch_read_puck_tracking(patterns: list[str], mapping: pl.LazyFrame, lazy=Tr
             **kwargs
         ).with_columns(
             smt_game_id(c('source_path')),
-            extract_period("source_path")
+            # extract_period("source_path")
         ).drop(c("source_path"))
         .join(mapping.select(c('SportlogiqGameID', 'SMTGameID')), left_on='smt_game_id', right_on='SMTGameID', how='left')
         .drop(c('smt_game_id'))
         .rename({'SportlogiqGameID': 'game_id'})
-        .with_columns(c('game_id').cast(pl.String))
+        .with_columns(
+            c('game_id').cast(pl.String),
+            c('z', 'vz', 'az').fill_null(0) # missing z values represent 0 (i.e. puck on ice)
+        )
     )
     return df if lazy else df.collect()
 
@@ -88,6 +86,12 @@ def read_id_mapping(path: str) -> dict[str, str]:
     )
 
     return {key: value[0] for key, value in mapping_dict.items()}
+
+def read_game_id_mapping(path: str) -> pl.DataFrame:
+    return (
+        pl.read_csv(path)
+        .with_columns(c('GameDate').str.strptime(pl.Date, format="%Y-%m-%d"))
+    )
 
 def sportlogiq_game_id(source_expr: pl.Expr | str) -> pl.Expr:
     """
