@@ -57,10 +57,7 @@ class PostShotData:
         return (
             self.puck_tracking
             .with_columns(elapsed_time = calculate_elapsed_time())
-            .filter(
-                c('entity_id') == '1'
-            )
-            .drop(c('entity_id'), c('clock_state'))
+            .drop(c('clock_state'))
         )
     
     def detect_shots(self) -> pl.LazyFrame:
@@ -99,7 +96,9 @@ class PostShotData:
             .select(
                 c('game_id'), c('period'), c('game_time'), c('elapsed_time'), c('shot_id'),
                 c('team'), c('player_first_name'), c('player_last_name'), c('player_reference_id'),
-                c('x_adj_coord'), c('y_adj_coord'), c('expected_goals_all_shots').alias('pre_shot_xg'),
+                c('opposing_team_goalie_on_ice_ref'), c('team_skaters_on_ice'), c('opposing_team_skaters_on_ice'),
+                c('x_adj_coord'), c('y_adj_coord'),
+                c('expected_goals_all_shots').alias('pre_shot_xg'),
                 c('type'), c('outcome'), c('flags'), c('goal')
             ).join(
                 detected,
