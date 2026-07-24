@@ -159,12 +159,12 @@ def shot_features() -> List[pl.Expr]:
     nearest_post_y = pl.when(c('goalline_y') < 0).then(-3).otherwise(3)
 
     polar_dist = distance_to_point_2d(c('goalline_y'), c('goalline_z'), 0, 0)
-    polar_angle_raw = pl.arctan2(c('goalline_z'), c('goalline_y')).degrees()
-    polar_angle_abs = pl.arctan2(c('goalline_z'), c('goalline_y').abs()).degrees()
+    polar_angle_raw = pl.arctan2(c('goalline_z'), c('goalline_y')).degrees() - 90
+    polar_angle_abs = (pl.arctan2(c('goalline_z'), c('goalline_y')).degrees() - 90).abs()
     polar_angle_near_post = (
         pl.when(c('shot_y') >= 0)
         .then(polar_angle_raw)
-        .otherwise(180 - polar_angle_raw)
+        .otherwise(-polar_angle_raw)
     )
 
     return [
