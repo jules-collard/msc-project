@@ -12,10 +12,11 @@ with app.setup:
 
     from data_readers import batch_read_events, batch_read_puck_tracking
     from post_shot.features import PostShotData
+    from post_shot.evaluation import evaluate_shot_detection
     from interaction import game_selectors, display_game_selectors
 
 
-@app.cell(hide_code=True)
+@app.cell(disabled=True, hide_code=True)
 def _():
     game_id_mapping = (
         pl.read_csv("mappings/NHL_20252026_game_smt_sportlogiq_id_map.csv")
@@ -24,14 +25,14 @@ def _():
     return (game_id_mapping,)
 
 
-@app.cell(hide_code=True)
+@app.cell(disabled=True, hide_code=True)
 def _(game_id_mapping):
     date_selector, game_id_selector, game_type_selector, run_button = game_selectors(game_id_mapping)
     display_game_selectors(date_selector, game_id_selector, game_type_selector, run_button)
     return date_selector, game_id_selector, game_type_selector, run_button
 
 
-@app.cell
+@app.cell(disabled=True)
 def _(date_selector, game_id_mapping, game_id_selector, game_type_selector):
     games = (
         game_id_mapping
@@ -47,7 +48,7 @@ def _(date_selector, game_id_mapping, game_id_selector, game_type_selector):
     return SMT_ids, games, sportlogiq_ids
 
 
-@app.cell
+@app.cell(disabled=True)
 def _(SMT_ids, games, run_button, sportlogiq_ids):
     mo.stop(not run_button.value, mo.md("Press **Run Shot Detection** above to load the data and generate the plots."))
 
@@ -57,7 +58,7 @@ def _(SMT_ids, games, run_button, sportlogiq_ids):
         [f"data/smtoasis/*/games/{id}/*_puck_tracking_raw_measurements*.parquet" for id in SMT_ids],
         mapping=games.lazy()
     )
-    return events, puck_tracking
+    return
 
 
 @app.cell
@@ -69,29 +70,19 @@ def _():
 
 
 @app.cell
-def _(
-    acc_slider,
-    angle_slider,
-    distance_slider,
-    events,
-    puck_tracking,
-    run_button,
-):
-    post_shot_data = PostShotData(events, puck_tracking, distance_threshold=distance_slider.value, impact_acceleration_threshold=acc_slider.value, deflection_angle_threshold=angle_slider.value)
-    metrics = post_shot_data.evaluate_detection().collect()
-    return metrics, post_shot_data
+def _():
+    # post_shot_data = PostShotData(events, puck_tracking, distance_threshold=distance_slider.value, impact_acceleration_threshold=acc_slider.value, deflection_angle_threshold=angle_slider.value)
+    # metrics = post_shot_data.evaluate_detection().collect()
+
+    full_output = pl.read_parquet("/output/post_shot_data_202510.parquet")
+    metrics = evaluate_shot_detection(full_output)
+    return full_output, metrics
 
 
 @app.cell
 def _(acc_slider, angle_slider, distance_slider, metrics):
     mo.vstack([distance_slider, acc_slider, angle_slider, mo.ui.table(metrics)])
     return
-
-
-@app.cell
-def _(post_shot_data):
-    full_output = post_shot_data.full_output().collect()
-    return (full_output,)
 
 
 @app.cell(hide_code=True)

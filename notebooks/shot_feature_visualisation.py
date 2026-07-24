@@ -19,7 +19,6 @@ def _():
     from interaction import game_selectors, display_game_selectors
 
     return (
-        PostShotData,
         aes,
         batch_read_events,
         batch_read_puck_tracking,
@@ -37,7 +36,7 @@ def _():
     )
 
 
-@app.cell
+@app.cell(disabled=True)
 def _(c, pl):
     game_id_mapping = (
         pl.read_csv("mappings/NHL_20252026_game_smt_sportlogiq_id_map.csv")
@@ -46,14 +45,14 @@ def _(c, pl):
     return (game_id_mapping,)
 
 
-@app.cell
+@app.cell(disabled=True)
 def _(display_game_selectors, game_id_mapping, game_selectors):
     date_selector, game_id_selector, game_type_selector, run_button = game_selectors(game_id_mapping)
     display_game_selectors(date_selector, game_id_selector, game_type_selector, run_button)
     return date_selector, game_id_selector, game_type_selector, run_button
 
 
-@app.cell
+@app.cell(disabled=True)
 def _(
     c,
     date_selector,
@@ -76,7 +75,7 @@ def _(
     return SMT_ids, games, sportlogiq_ids
 
 
-@app.cell
+@app.cell(disabled=True)
 def _(
     SMT_ids,
     batch_read_events,
@@ -95,13 +94,21 @@ def _(
         [f"data/smtoasis/*/games/{id}/*_puck_tracking_raw_measurements*.parquet" for id in SMT_ids],
         mapping=games.lazy()
     )
-    return events, puck_tracking
+    return
 
 
 @app.cell
-def _(PostShotData, events, puck_tracking):
-    post_shot_data = PostShotData(events, puck_tracking)
-    model_data = post_shot_data.model_data().collect()
+def _(c, pl):
+    # post_shot_data = PostShotData(events, puck_tracking)
+    # model_data = post_shot_data.model_data().collect()
+    model_data = (
+        pl.read_parquet("/output/post_shot_data_202510.parquet")
+        .drop_nulls(c('shot_speed')) # Only keep shots with valid speed (i.e. shots that were detected)
+        .filter(
+            c('shot_x') >= 25, # Only o-zone shots
+            c('type').str.contains('blocked').not_()
+        )
+    )
     return (model_data,)
 
 
@@ -111,7 +118,7 @@ def _(aes, ggplot, labs, model_data, p9, theme_bw):
         model_data
         >> ggplot(aes(x='goal', y='shot_speed', fill='goal'))
         + p9.geom_violin(show_legend=False)
-        + p9.geom_sina(alpha=0.2, show_legend=False)
+        # + p9.geom_sina(alpha=0.05, show_legend=False)
         + p9.scale_x_discrete(labels=["No Goal", "Goal"])
         + p9.coord_flip()
         + labs(title="Distribution of Shot Speed by Goal Outcome",
@@ -164,7 +171,7 @@ def _(aes, c, ggplot, labs, model_data, p9, percent_format, pl, theme_bw):
         + p9.coord_fixed(ratio=1, ylim=(0, 6))
         + p9.scale_x_reverse()
         + p9.scale_fill_continuous(labels=percent_format())
-        + p9.scale_size_continuous(breaks=[5,10,15,20])
+        + p9.scale_size_continuous()
         + theme_bw()
         + labs(title="Shot Success Rate by Goal Location",
               x="Horizontal Location (ft)", y="Vertical Location (ft)",
@@ -179,7 +186,7 @@ def _(aes, ggplot, labs, model_data, p9, theme_bw):
         model_data
         >> ggplot(aes(x='goal', y='goalline_y', fill='goal'))
         + p9.geom_violin(show_legend=False)
-        + p9.geom_sina(alpha=0.2, show_legend=False)
+        # + p9.geom_sina(alpha=0.2, show_legend=False)
         + p9.geom_hline(yintercept=3, linetype="dotted")
         + p9.geom_hline(yintercept=-3, linetype="dotted")
         + p9.scale_y_reverse()
@@ -199,7 +206,7 @@ def _(aes, ggplot, labs, model_data, p9, theme_bw):
         model_data
         >> ggplot(aes(x='goal', y='goalline_z', fill='goal'))
         + p9.geom_violin(show_legend=False)
-        + p9.geom_sina(alpha=0.2, show_legend=False)
+        # + p9.geom_sina(alpha=0.2, show_legend=False)
         + p9.geom_hline(yintercept=4, linetype="dotted")
         + p9.scale_x_discrete(labels=["No Goal", "Goal"])
         + p9.ylim(0, 10)
@@ -217,7 +224,7 @@ def _(aes, ggplot, labs, model_data, p9, theme_bw):
         model_data
         >> ggplot(aes(x='goal', y='dist_to_top_corner', fill='goal'))
         + p9.geom_violin(show_legend=False)
-        + p9.geom_sina(alpha=0.2, show_legend=False)
+        # + p9.geom_sina(alpha=0.2, show_legend=False)
         + p9.geom_hline(yintercept=0, linetype="dotted")
         + p9.coord_flip()
         + p9.scale_x_discrete(labels=["No Goal", "Goal"])
@@ -234,10 +241,15 @@ def _(aes, ggplot, labs, model_data, p9, theme_bw):
         model_data
         >> ggplot(aes(x='goal', y='dist_to_post', fill='goal'))
         + p9.geom_violin(show_legend=False)
-        + p9.geom_sina(alpha=0.2, show_legend=False)
+        # + p9.geom_sina(alpha=0.2, show_legend=False)
         + p9.geom_hline(yintercept=0, linetype="dotted")
+        + p9.annotate("text", label="← Off Target", x=1.4, y=-2,
+                     alpha=0.8, size=10)
+        + p9.annotate("text", label="On Target →", x=1.4, y=1.5,
+                 alpha=0.8, size=10)
         + p9.coord_flip()
         + p9.scale_x_discrete(labels=["No Goal", "Goal"])
+        + p9.ylim(-10, None)
         + labs(title="Distribution of Shot Distance to Nearest Post by Goal Outcome",
               x="", y="Distance to Nearest Post (ft)")
         + p9.theme(legend_position="none")
@@ -252,7 +264,7 @@ def _(aes, ggplot, labs, model_data, p9, theme_bw):
         model_data
         >> ggplot(aes(x='goal', y='dist_to_center', fill='goal'))
         + p9.geom_violin(show_legend=False)
-        + p9.geom_sina(alpha=0.2, show_legend=False)
+        # + p9.geom_sina(alpha=0.2, show_legend=False)
         + p9.coord_flip()
         + p9.scale_x_discrete(labels=["No Goal", "Goal"])
         + p9.ylim(0, 20)
@@ -277,7 +289,7 @@ def _(aes, c, cs, ggplot, labs, model_data, p9, theme_bw):
         }))
         >> ggplot(aes(x='goal', y='angle', fill='goal'))
         + p9.geom_violin(show_legend=False)
-        + p9.geom_jitter(alpha=0.2, show_legend=False)
+        # + p9.geom_jitter(alpha=0.2, show_legend=False)
         + p9.facet_wrap('angle_type')
         + p9.coord_flip()
         + p9.scale_x_discrete(labels=["No Goal", "Goal"])

@@ -31,19 +31,18 @@ def _():
 
 @app.cell
 def _(game_id_mapping):
-    date_selector, game_id_selector, game_type_selector, run_button = game_selectors(game_id_mapping)
-    display_game_selectors(date_selector, game_id_selector, game_type_selector, run_button)
-    return date_selector, game_id_selector, game_type_selector, run_button
+    game_ids = game_id_mapping.select(c('SportlogiqGameID')).to_series()
+    game_id_selector = mo.ui.dropdown.from_series(game_ids, value=game_ids.first())
+    game_id_selector
+    return (game_id_selector,)
 
 
 @app.cell
-def _(date_selector, game_id_mapping, game_id_selector, game_type_selector):
+def _(game_id_mapping, game_id_selector):
     games = (
         game_id_mapping
         .filter(
-            c('GameDate').is_in(pl.date_range(*date_selector.value).implode()),
-            c('SportlogiqGameID').is_in(game_id_selector.value),
-            c('Stage').is_in(game_type_selector.value)
+            c('SportlogiqGameID') == game_id_selector.value,
         )
     )
 
@@ -53,13 +52,11 @@ def _(date_selector, game_id_mapping, game_id_selector, game_type_selector):
 
 
 @app.cell
-def _(SMT_ids, games, run_button, sportlogiq_ids):
-    mo.stop(not run_button.value, mo.md("Press **Run Shot Detection** above to load the data and generate the plots."))
-
-    events = batch_read_events([f"data/sportlogiq/*/games/{id}/*_sapifullevents.json" for id in sportlogiq_ids])
+def _(SMT_ids, games, sportlogiq_ids):
+    events = batch_read_events([f"/data/sportlogiq/*/games/{id}/*_sapifullevents.json" for id in sportlogiq_ids])
 
     puck_tracking = batch_read_puck_tracking(
-        [f"data/smtoasis/*/games/{id}/*_puck_tracking_raw_measurements*.parquet" for id in SMT_ids],
+        [f"/data/smtoasis/*/games/{id}/*_puck_tracking_raw_measurements*.parquet" for id in SMT_ids],
         mapping=games.lazy()
     )
 
@@ -83,7 +80,8 @@ def _(post_shot_data):
             strategy='nearest',
             tolerance=WINDOW_SIZE / 2,
             coalesce=False
-        ).drop_nulls(c('shot_id'))
+        )
+        .drop_nulls(c('shot_id'))
         .with_columns(adjust_vectors(c('x', 'y', 'vx', 'vy', 'ax', 'ay')))
         .with_columns(
             goal_vectors(),
