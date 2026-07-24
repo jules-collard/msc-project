@@ -6,6 +6,7 @@ app = marimo.App(width="medium")
 
 @app.cell
 def _():
+    import marimo as mo
     import polars as pl
     from polars import col as c
     from polars import selectors as cs
@@ -25,6 +26,7 @@ def _():
         cs,
         ggplot,
         labs,
+        mo,
         p9,
         percent_format,
         pl,
@@ -33,13 +35,73 @@ def _():
 
 
 @app.cell
-def _(batch_read_events, batch_read_puck_tracking):
-    events = batch_read_events(
-        "data/*/*_sapifullevents.json"
+def _(c, pl):
+    game_id_mapping = (
+        pl.read_csv("mappings/NHL_20252026_game_smt_sportlogiq_id_map.csv")
+        .with_columns(c('GameDate').str.strptime(pl.Date, format="%Y-%m-%d"))
+    )
+    return (game_id_mapping,)
+
+
+@app.cell
+def _(c, game_id_mapping, mo):
+    date_selector = mo.ui.date_range.from_series(
+        game_id_mapping.select(c('GameDate')).to_series(),
+        label="Game Date"
     )
 
+    game_id_selector = mo.ui.multiselect.from_series(
+        game_id_mapping.select(c('SportlogiqGameID')).to_series(),
+        value=game_id_mapping.select(c('SportlogiqGameID')).to_series(),
+        label="Sportlogiq Game ID"
+    )
+
+    game_type_selector = mo.ui.multiselect(
+        options=["regular", "playoffs"],
+        value=["regular", "playoffs"],
+        label="Game Type"
+    )
+
+    mo.hstack([date_selector, game_id_selector, game_type_selector], justify="start")
+    return date_selector, game_id_selector, game_type_selector
+
+
+@app.cell
+def _(
+    c,
+    date_selector,
+    game_id_mapping,
+    game_id_selector,
+    game_type_selector,
+    pl,
+):
+    games = (
+        game_id_mapping
+        .filter(
+            c('GameDate').is_in(pl.date_range(*date_selector.value).implode()),
+            c('SportlogiqGameID').is_in(game_id_selector.value),
+            c('Stage').is_in(game_type_selector.value)
+        )
+    )
+
+    sportlogiq_ids = games.select(c('SportlogiqGameID')).to_series().to_list()
+    SMT_ids = games.select(c('SMTGameID')).to_series().to_list()
+    return SMT_ids, games, sportlogiq_ids
+
+
+@app.cell
+def _(
+    SMT_ids,
+    batch_read_events,
+    batch_read_puck_tracking,
+    games,
+    sportlogiq_ids,
+):
+    events = batch_read_events([f"data/sportlogiq/*/games/{id}/*_sapifullevents.json" for id in sportlogiq_ids])
+
     puck_tracking = batch_read_puck_tracking(
-        "data/*/HOCKEY_NHL_*.parquet"
+        [f"data/smtoasis/*/games/{id}/*_puck_tracking_raw_measurements*.parquet" for id in SMT_ids],
+        mapping=games.lazy()
     )
     return events, puck_tracking
 

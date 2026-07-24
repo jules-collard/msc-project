@@ -27,3 +27,15 @@ dev = [
     "pydantic-ai>=2.8.0",
     "pytest>=9.1.1",
 ]
+
+[tool.ruff.lint]
+select = ["I"]
+
+[tool.ruff.lint.isort]
+section-order = [
+    "standard-library", # Built-in Python modules (sys, os, etc.)
+    "third-party",      # Additional libraries (numpy, pandas, etc.)
+    "first-party",      # custom scripts and internal packages
+    "local-folder"      # Relative imports (e.g., from . import utils)
+]
+known-first-party = ["scripts"]

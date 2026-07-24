@@ -16,17 +16,59 @@ with app.setup:
 
 @app.cell
 def _():
-    game_id_selector = mo.ui.text(placeholder="Enter Game ID", value="*")
-    game_id_selector
-    return (game_id_selector,)
+    game_id_mapping = (
+        pl.read_csv("mappings/NHL_20252026_game_smt_sportlogiq_id_map.csv")
+        .with_columns(c('GameDate').str.strptime(pl.Date, format="%Y-%m-%d"))
+    )
+    return (game_id_mapping,)
 
 
-@app.cell(hide_code=True)
-def _(game_id_selector):
-    events = batch_read_events(f"data/{game_id_selector.value}/*_sapifullevents.json")
+@app.cell
+def _(game_id_mapping):
+    date_selector = mo.ui.date_range.from_series(
+        game_id_mapping.select(c('GameDate')).to_series(),
+        label="Game Date"
+    )
+
+    game_id_selector = mo.ui.multiselect.from_series(
+        game_id_mapping.select(c('SportlogiqGameID')).to_series(),
+        value=game_id_mapping.select(c('SportlogiqGameID')).to_series(),
+        label="Sportlogiq Game ID"
+    )
+
+    game_type_selector = mo.ui.multiselect(
+        options=["regular", "playoffs"],
+        value=["regular", "playoffs"],
+        label="Game Type"
+    )
+
+    mo.hstack([date_selector, game_id_selector, game_type_selector], justify="start")
+    return date_selector, game_id_selector, game_type_selector
+
+
+@app.cell
+def _(date_selector, game_id_mapping, game_id_selector, game_type_selector):
+    games = (
+        game_id_mapping
+        .filter(
+            c('GameDate').is_in(pl.date_range(*date_selector.value).implode()),
+            c('SportlogiqGameID').is_in(game_id_selector.value),
+            c('Stage').is_in(game_type_selector.value)
+        )
+    )
+
+    sportlogiq_ids = games.select(c('SportlogiqGameID')).to_series().to_list()
+    SMT_ids = games.select(c('SMTGameID')).to_series().to_list()
+    return SMT_ids, games, sportlogiq_ids
+
+
+@app.cell
+def _(SMT_ids, games, sportlogiq_ids):
+    events = batch_read_events([f"data/sportlogiq/*/games/{id}/*_sapifullevents.json" for id in sportlogiq_ids])
 
     puck_tracking = batch_read_puck_tracking(
-        f"data/{game_id_selector.value}/HOCKEY_NHL_*_Period_*.parquet",
+        [f"data/smtoasis/*/games/{id}/*_puck_tracking_raw_measurements*.parquet" for id in SMT_ids],
+        mapping=games.lazy()
     )
     return events, puck_tracking
 
