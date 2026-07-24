@@ -16,6 +16,7 @@ def _():
 
     from data_readers import batch_read_events, batch_read_puck_tracking
     from post_shot.features import PostShotData
+    from interaction import game_selectors, display_game_selectors
 
     return (
         PostShotData,
@@ -24,6 +25,8 @@ def _():
         batch_read_puck_tracking,
         c,
         cs,
+        display_game_selectors,
+        game_selectors,
         ggplot,
         labs,
         mo,
@@ -44,26 +47,10 @@ def _(c, pl):
 
 
 @app.cell
-def _(c, game_id_mapping, mo):
-    date_selector = mo.ui.date_range.from_series(
-        game_id_mapping.select(c('GameDate')).to_series(),
-        label="Game Date"
-    )
-
-    game_id_selector = mo.ui.multiselect.from_series(
-        game_id_mapping.select(c('SportlogiqGameID')).to_series(),
-        value=game_id_mapping.select(c('SportlogiqGameID')).to_series(),
-        label="Sportlogiq Game ID"
-    )
-
-    game_type_selector = mo.ui.multiselect(
-        options=["regular", "playoffs"],
-        value=["regular", "playoffs"],
-        label="Game Type"
-    )
-
-    mo.hstack([date_selector, game_id_selector, game_type_selector], justify="start")
-    return date_selector, game_id_selector, game_type_selector
+def _(display_game_selectors, game_id_mapping, game_selectors):
+    date_selector, game_id_selector, game_type_selector, run_button = game_selectors(game_id_mapping)
+    display_game_selectors(date_selector, game_id_selector, game_type_selector, run_button)
+    return date_selector, game_id_selector, game_type_selector, run_button
 
 
 @app.cell
@@ -95,8 +82,13 @@ def _(
     batch_read_events,
     batch_read_puck_tracking,
     games,
+    mo,
+    run_button,
     sportlogiq_ids,
 ):
+    mo.stop(not run_button.value, mo.md("Press **Run Shot Detection** above to load the data and generate the plots."))
+
+
     events = batch_read_events([f"data/sportlogiq/*/games/{id}/*_sapifullevents.json" for id in sportlogiq_ids])
 
     puck_tracking = batch_read_puck_tracking(
