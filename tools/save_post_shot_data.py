@@ -15,6 +15,11 @@ def iso_date(value: str) -> date:
         ) from exc
 
 def main():
+    """
+    Example usage:
+    PYTHONPATH=scripts/ uv run python -m tools.save_post_shot_data "mappings/NHL_20252026_game_smt_sportlogiq_id_map.csv" --start_date "2025-10-01" --end_date "2025-10-31" -o "/output/post_shot_data_202510.parquet"
+    """
+
     parser = argparse.ArgumentParser(
         prog="post_shot_data",
         description="Run shot detection algorithm, derive post-shot features, and save results to Parquet files.",

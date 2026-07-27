@@ -110,7 +110,12 @@ def _(c, distance_to_point_2d, pl):
             c('shot_x') >= 25, # Only o-zone shots
             c('type').str.contains('blocked').not_()
         ).with_columns(
-            dist_to_goal = distance_to_point_2d(c('shot_x'), c('shot_y'), 89, 0)
+            dist_to_goal = distance_to_point_2d(c('shot_x'), c('shot_y'), 89, 0),
+            goalline_y_norm = pl.when(
+                c('goalie_handedness') == 'R'
+            ).then(
+                -c('goalline_y')
+            ).otherwise(c('goalline_y'))
         )
     )
     return (model_data,)
@@ -176,10 +181,6 @@ def _(aes, c, ggplot, labs, model_data, p9, percent_format, pl, theme_bw):
         >> ggplot(aes(x='grid_y', y='grid_z'))
         + p9.geom_tile(aes(fill='success_rate'))
         + p9.geom_point(aes(size='num_shots'), fill='white', color='black', alpha=0.7)
-        # Net
-        # + p9.geom_rect(
-        #     aes(xmin=-3, xmax=3, ymin=0, ymax=4), fill='lightgrey',
-        # )
         # Ice Surface
         + p9.geom_segment(
             aes(x=-5, xend=5, y=0, yend=0), 
@@ -190,7 +191,7 @@ def _(aes, c, ggplot, labs, model_data, p9, percent_format, pl, theme_bw):
             aes(x='y', y='z'), 
             data=net_outline, 
             color="red", size=2, lineend="round"
-        )  
+        )
         + p9.coord_fixed(ratio=1, ylim=(0, 6))
         + p9.scale_x_reverse()
         + p9.scale_fill_continuous(labels=percent_format())
@@ -198,7 +199,68 @@ def _(aes, c, ggplot, labs, model_data, p9, percent_format, pl, theme_bw):
         + theme_bw()
         + labs(title="Shot Success Rate by Goal Location",
               x="Horizontal Location (ft)", y="Vertical Location (ft)",
-              fill="Success Rate", size="# Shots")
+              fill="Success Rate", size="# Shots",
+              caption="Unblocked Shots")
+    )
+    return grid_size, net_outline
+
+
+@app.cell
+def _(
+    aes,
+    c,
+    ggplot,
+    grid_size,
+    labs,
+    model_data,
+    net_outline,
+    p9,
+    percent_format,
+    pl,
+    theme_bw,
+):
+    mean_success_rate = model_data.select(c('goal').mean()).item()
+
+    (
+        model_data
+        .with_columns(
+            ((pl.col('goalline_y_norm') / grid_size).floor() * grid_size + (grid_size / 2)).alias('grid_y'),
+            ((pl.col('goalline_z') / grid_size).floor() * grid_size + (grid_size / 2)).alias('grid_z')
+        ).group_by('grid_y', 'grid_z')
+        .agg(
+            (c('goal').mean() - mean_success_rate).alias('rel_success_rate'),
+            pl.len().alias('num_shots')
+        ).filter(
+            c('grid_y').is_between(-5, 5),
+            c('grid_z').is_between(0, 6),
+        )
+        >> ggplot(aes(x='grid_y', y='grid_z'))
+        + p9.geom_tile(aes(fill='rel_success_rate'))
+        + p9.geom_point(aes(size='num_shots'), fill='white', color='black', alpha=0.7)
+        + p9.geom_segment(
+            aes(x=-5, xend=5, y=0, yend=0), 
+            color="lightblue", size=2
+        ) 
+        # Posts
+        + p9.geom_path(
+            aes(x='y', y='z'), 
+            data=net_outline, 
+            color="black", size=2, lineend="round"
+        ) + p9.annotate("text", label="← Blocker Side", x=1.5, y=7.2,
+                        size=10, color="black")
+        + p9.annotate("text", label="Glove Side →", x=-1.5, y=7.2,
+                      size=10, color="black")
+        + p9.coord_fixed(ratio=1, ylim=(0, 6))
+        + p9.scale_x_reverse()
+        + p9.scale_fill_cmap(cmap_name="bwr", limits=(-0.15, 0.15), labels=percent_format())
+        + p9.scale_size_continuous()
+        + theme_bw()
+        + p9.theme(plot_subtitle=p9.element_text(ha="center"))
+        + labs(title="Relative Shot Success Rate by Goal Location",
+               subtitle="← Blocker Side       Glove Side →",
+              x="Horizontal Location (ft)", y="Vertical Location (ft)",
+              fill="Success Rate", size="# Shots",
+              caption=f"Unblocked Shots | Success Rate relative to League Average {mean_success_rate:.1%}")
     )
     return
 
@@ -245,14 +307,14 @@ def _(aes, ggplot, labs, model_data, p9, theme_bw):
 def _(aes, ggplot, labs, model_data, p9, theme_bw):
     (
         model_data
-        >> ggplot(aes(x='goal', y='dist_to_top_corner', fill='goal'))
+        >> ggplot(aes(x='goal', y='dist_to_corner', fill='goal'))
         + p9.geom_violin(show_legend=False)
         # + p9.geom_sina(alpha=0.2, show_legend=False)
         + p9.geom_hline(yintercept=0, linetype="dotted")
         + p9.coord_flip()
         + p9.scale_x_discrete(labels=["No Goal", "Goal"])
-        + labs(title="Distribution of Shot Distance to Top Corner by Goal Outcome",
-              x="", y="Distance to Nearest Top Corner (ft)")
+        + labs(title="Distribution of Shot Distance to Nearest Corner by Goal Outcome",
+              x="", y="Distance to Nearest Corner (ft)")
         + theme_bw()
     )
     return
