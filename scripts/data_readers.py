@@ -1,4 +1,5 @@
 import glob
+from itertools import chain
 
 import orjson
 import polars as pl
@@ -77,9 +78,19 @@ def batch_read_puck_tracking(patterns: list[str], mapping: pl.LazyFrame, lazy=Tr
     return df if lazy else df.collect()
 
 
-def batch_read_rosters(pattern: str, lazy=True) -> pl.DataFrame | pl.LazyFrame:
+def batch_read_rosters(patterns: list[str], lazy=True) -> pl.DataFrame | pl.LazyFrame:
+    """
+    Function to read multiple roster files at once, using a glob pattern.
+    Returns a single polars dataframe with player information, with one row
+    per player.
+    """
+
     normalised_data = []
-    for file_path in glob.iglob(pattern):
+
+    # Create iterator of all files matching the patterns
+    files = chain.from_iterable(glob.iglob(p) for p in patterns)
+
+    for file_path in files:
         with open(file_path, "rb") as f:
             data = orjson.loads(f.read())
 

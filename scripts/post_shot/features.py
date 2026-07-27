@@ -31,6 +31,7 @@ class PostShotData:
 
     events: pl.LazyFrame
     puck_tracking: pl.LazyFrame
+    player_info: pl.LazyFrame
     window_size: float = 1.6
     distance_threshold: float = 8
     impact_acceleration_threshold: float = -800
@@ -104,6 +105,18 @@ class PostShotData:
                 detected,
                 on='shot_id',
                 how='left'
+            ).join( # Add shooter handedness
+                self.player_info.select(c('SportlogiqPlayerID'), c('handedness')).rename({'handedness': 'shooter_handedness'}),
+                left_on='player_reference_id',
+                right_on='SportlogiqPlayerID',
+                how='left',
+                coalesce=True
+            ).join( # Add goalie handedness
+                self.player_info.select(c('SportlogiqPlayerID'), c('handedness')).rename({'handedness': 'goalie_handedness'}),
+                left_on='opposing_team_goalie_on_ice_ref',
+                right_on='SportlogiqPlayerID',
+                how='left',
+                coalesce=True
             )
         )
 

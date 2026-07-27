@@ -17,6 +17,7 @@ def _():
     from data_readers import batch_read_events, batch_read_puck_tracking
     from post_shot.features import PostShotData
     from interaction import game_selectors, display_game_selectors
+    from utils import distance_to_point_2d
 
     return (
         aes,
@@ -25,6 +26,7 @@ def _():
         c,
         cs,
         display_game_selectors,
+        distance_to_point_2d,
         game_selectors,
         ggplot,
         labs,
@@ -98,7 +100,7 @@ def _(
 
 
 @app.cell
-def _(c, pl):
+def _(c, distance_to_point_2d, pl):
     # post_shot_data = PostShotData(events, puck_tracking)
     # model_data = post_shot_data.model_data().collect()
     model_data = (
@@ -107,6 +109,8 @@ def _(c, pl):
         .filter(
             c('shot_x') >= 25, # Only o-zone shots
             c('type').str.contains('blocked').not_()
+        ).with_columns(
+            dist_to_goal = distance_to_point_2d(c('shot_x'), c('shot_y'), 89, 0)
         )
     )
     return (model_data,)
@@ -118,11 +122,30 @@ def _(aes, ggplot, labs, model_data, p9, theme_bw):
         model_data
         >> ggplot(aes(x='goal', y='shot_speed', fill='goal'))
         + p9.geom_violin(show_legend=False)
-        # + p9.geom_sina(alpha=0.05, show_legend=False)
+        # + p9.geom_sina(alpha=0.2)
         + p9.scale_x_discrete(labels=["No Goal", "Goal"])
         + p9.coord_flip()
         + labs(title="Distribution of Shot Speed by Goal Outcome",
               x="", y="Shot Speed (ft/s)")
+        + theme_bw()
+    )
+    return
+
+
+@app.cell
+def _(aes, ggplot, labs, model_data, p9, theme_bw):
+    (
+        model_data
+        >> ggplot(aes(x='goal', y='shot_speed'))
+        + p9.geom_sina(aes(fill='dist_to_goal', color='dist_to_goal'), alpha=0.2)
+        + p9.geom_violin(color='black', fill=None, alpha=0.7)
+        + p9.scale_x_discrete(labels=["No Goal", "Goal"])
+        + p9.scale_fill_distiller(palette='YlOrRd', direction=-1)
+        + p9.scale_color_distiller(palette='YlOrRd', direction=-1)
+        + p9.coord_flip()
+        + labs(title="Distribution of Shot Speed by Goal Outcome",
+              x="", y="Shot Speed (ft/s)", fill="Distance \n to Goal (ft)",
+              color="Distance \n to Goal (ft)")
         + theme_bw()
     )
     return

@@ -12,7 +12,7 @@ with app.setup:
     from hockey_rink import NHLRink
     from matplotlib import pyplot as plt
 
-    from data_readers import batch_read_puck_tracking, batch_read_events
+    from data_readers import batch_read_puck_tracking, batch_read_events, batch_read_rosters
     from processing.tracking import adjust_vectors
     from post_shot.geometry import goal_vectors
     from post_shot.features import PostShotData
@@ -60,7 +60,9 @@ def _(SMT_ids, games, sportlogiq_ids):
         mapping=games.lazy()
     )
 
-    post_shot_data = PostShotData(events, puck_tracking)
+    player_info = batch_read_rosters([f"/data/sportlogiq/*/games/{id}/NHL_*_gameroster.json" for id in sportlogiq_ids])
+
+    post_shot_data = PostShotData(events, puck_tracking, player_info)
     return (post_shot_data,)
 
 

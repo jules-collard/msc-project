@@ -49,7 +49,7 @@ def _(date_selector, game_id_mapping, game_id_selector, game_type_selector):
 
 
 @app.cell(disabled=True)
-def _(SMT_ids, games, run_button, sportlogiq_ids):
+def _(SMT_ids, batch_read_rosters, games, run_button, sportlogiq_ids):
     mo.stop(not run_button.value, mo.md("Press **Run Shot Detection** above to load the data and generate the plots."))
 
     events = batch_read_events([f"data/sportlogiq/*/games/{id}/*_sapifullevents.json" for id in sportlogiq_ids])
@@ -58,6 +58,8 @@ def _(SMT_ids, games, run_button, sportlogiq_ids):
         [f"data/smtoasis/*/games/{id}/*_puck_tracking_raw_measurements*.parquet" for id in SMT_ids],
         mapping=games.lazy()
     )
+
+    player_info = batch_read_rosters([f"/data/sportlogiq/*/games/{id}/NHL_*_gameroster.json" for id in sportlogiq_ids])
     return
 
 
@@ -71,7 +73,7 @@ def _():
 
 @app.cell
 def _():
-    # post_shot_data = PostShotData(events, puck_tracking, distance_threshold=distance_slider.value, impact_acceleration_threshold=acc_slider.value, deflection_angle_threshold=angle_slider.value)
+    # post_shot_data = PostShotData(events, puck_tracking, player_info, distance_threshold=distance_slider.value, impact_acceleration_threshold=acc_slider.value, deflection_angle_threshold=angle_slider.value)
     # metrics = post_shot_data.evaluate_detection().collect()
 
     full_output = pl.read_parquet("/output/post_shot_data_202510.parquet")
