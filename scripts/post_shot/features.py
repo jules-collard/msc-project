@@ -102,7 +102,7 @@ class PostShotData:
                 c('team_skaters_on_ice'), c('opposing_team_skaters_on_ice'),
                 c('x_adj_coord'), c('y_adj_coord'),
                 c('expected_goals_all_shots').alias('pre_shot_xg'),
-                c('type'), c('outcome'), c('flags'), c('goal')
+                c('type'), c('outcome'), c('flags'), c('goal'), c('flip')
             ).join(
                 detected,
                 on='shot_id',
