@@ -3,7 +3,7 @@ from datetime import date
 import polars as pl
 from polars import col as c
 
-from scripts.data_readers import read_game_id_mapping, batch_read_events, batch_read_puck_tracking
+from scripts.data_readers import read_game_id_mapping, batch_read_events, batch_read_puck_tracking, batch_read_rosters
 from scripts.post_shot.features import PostShotData
 
 def iso_date(value: str) -> date:
@@ -68,6 +68,9 @@ def main():
     sportlogiq_ids = games.select(c('SportlogiqGameID')).to_series().to_list()
     SMT_ids = games.select(c('SMTGameID')).to_series().to_list()
 
+    print("Reading rosters...")
+    player_info = batch_read_rosters([f"/data/sportlogiq/*/games/{id}/*_gameroster.json" for id in sportlogiq_ids])
+
     print("Reading events...")
     events = batch_read_events([f"/data/sportlogiq/*/games/{id}/*_sapifullevents.json" for id in sportlogiq_ids])
 
@@ -77,7 +80,7 @@ def main():
         mapping=games.lazy()
     )
 
-    post_shot_data = PostShotData(events, puck_tracking)
+    post_shot_data = PostShotData(events, puck_tracking, player_info)
 
     print("Saving results...")
     post_shot_data.full_output().collect().write_parquet(args.output_file)
