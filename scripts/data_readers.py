@@ -1,3 +1,6 @@
+import glob
+
+import orjson
 import polars as pl
 from polars import col as c
 
@@ -72,6 +75,30 @@ def batch_read_puck_tracking(patterns: list[str], mapping: pl.LazyFrame, lazy=Tr
         )
     )
     return df if lazy else df.collect()
+
+
+def batch_read_rosters(pattern: str, lazy=True) -> pl.DataFrame | pl.LazyFrame:
+    normalised_data = []
+    for file_path in glob.iglob(pattern):
+        with open(file_path, "rb") as f:
+            data = orjson.loads(f.read())
+
+        for team_id, team_data in data.items():
+            normalised_data.append({
+                "team_id": team_id,
+                "team_data": team_data
+            })
+
+    rosters = (
+        pl.from_dicts(normalised_data)
+        .explode(c('team_data'))
+        .unnest()
+        .drop(c('role', 'college'))
+        .rename({'id': 'SportlogiqPlayerID'})
+        .unique(c('SportlogiqPlayerID'))
+    )
+
+    return rosters.lazy() if lazy else rosters
 
 def read_id_mapping(path: str) -> dict[str, str]:
     """
