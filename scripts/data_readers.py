@@ -51,7 +51,7 @@ def batch_read_entity_tracking(patterns: list[str], mapping: pl.LazyFrame, lazy=
     )
     return df if lazy else df.collect()
 
-def batch_read_puck_tracking(patterns: list[str], mapping: pl.LazyFrame, lazy=True, **kwargs) -> pl.DataFrame | pl.LazyFrame:
+def batch_read_puck_tracking(patterns: list[str], mapping: pl.LazyFrame, lazy=True, extract_period_from_source=False, **kwargs) -> pl.DataFrame | pl.LazyFrame:
     """
     Function to read multiple puck tracking files at once, using a glob pattern.
     Expects file names in the format "data/{game_id}/HOCKEY_NHL_..._Period_{period}.parquet"
@@ -65,8 +65,15 @@ def batch_read_puck_tracking(patterns: list[str], mapping: pl.LazyFrame, lazy=Tr
             **kwargs
         ).with_columns(
             smt_game_id(c('source_path')),
-            # extract_period("source_path")
-        ).drop(c("source_path"))
+        )
+    )
+
+    if extract_period_from_source: # Only for local development where files are split by period
+        df = df.with_columns(extract_period("source_path"))
+
+    df = (
+        df
+        .drop(c("source_path"))
         .join(mapping.select(c('SportlogiqGameID', 'SMTGameID')), left_on='smt_game_id', right_on='SMTGameID', how='left')
         .drop(c('smt_game_id'))
         .rename({'SportlogiqGameID': 'game_id'})
