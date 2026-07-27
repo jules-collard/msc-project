@@ -38,7 +38,8 @@ def calculate_shot_detection(
             on='elapsed_time',
             strategy='nearest',
             tolerance=window_size / 2,
-            coalesce=False
+            coalesce=False,
+            check_sortedness=False
         ).drop_nulls(c('shot_id'))
         .with_columns(adjust_vectors(c('x', 'y', 'vx', 'vy', 'ax', 'ay')))
         .with_columns(
