@@ -97,7 +97,9 @@ class PostShotData:
             .select(
                 c('game_id'), c('period'), c('game_time'), c('elapsed_time'), c('shot_id'),
                 c('team'), c('player_first_name'), c('player_last_name'), c('player_reference_id'),
-                c('opposing_team_goalie_on_ice_ref'), c('team_skaters_on_ice'), c('opposing_team_skaters_on_ice'),
+                c('team_forwards_on_ice_refs', 'team_defencemen_on_ice_refs', 'team_goalie_on_ice_ref'),
+                c('opposing_team_forwards_on_ice_refs', 'opposing_team_defencemen_on_ice_refs', 'opposing_team_goalie_on_ice_ref'),
+                c('team_skaters_on_ice'), c('opposing_team_skaters_on_ice'),
                 c('x_adj_coord'), c('y_adj_coord'),
                 c('expected_goals_all_shots').alias('pre_shot_xg'),
                 c('type'), c('outcome'), c('flags'), c('goal')
