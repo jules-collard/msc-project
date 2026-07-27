@@ -48,6 +48,7 @@ def batch_read_entity_tracking(patterns: list[str], mapping: pl.LazyFrame, lazy=
         .join(mapping.select(c('SportlogiqGameID', 'SMTGameID')), left_on='smt_game_id', right_on='SMTGameID', how='left')
         .drop(c('smt_game_id'))
         .rename({'SportlogiqGameID': 'game_id'})
+        .with_columns(c('game_id').cast(pl.String))
     )
     return df if lazy else df.collect()
 
