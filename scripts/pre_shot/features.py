@@ -9,7 +9,7 @@ from processing.tracking import calculate_elapsed_time, adjust_vectors
 from pre_shot.geometry import angle_to_shooter
 from pre_shot.pressure import pressure, pressure_direction
 from pre_shot.lanes import inside_shooting_lane, inside_shadow_lane
-from utils import distance_2d
+from utils import distance_2d, magnitude_2d, distance_to_point_2d
 
 
 @dataclass
@@ -79,4 +79,55 @@ class PreShotData:
             #     c('game_id', 'period', 'shot_id', 'defender_id',
             #       'dist_to_shooter', 'angle_to_shooter', 'pressure', 'pressure_direction', 'inside_shooting_lane', 'inside_shadow_lane')
             # )
+        )
+
+    def goalie_data(self) -> pl.LazyFrame:
+        return (
+            self.shots_prepared
+            .sort(c('game_id', 'period', 'opposing_team_goalie_on_ice_ref', 'shot_time'))
+            .join_asof(
+                self.player_tracking_prepared.sort(c('game_id', 'period', 'SportlogiqPlayerID', 'elapsed_time')),
+                left_on='shot_time',
+                right_on='elapsed_time',
+                by_left=['game_id', 'period', 'opposing_team_goalie_on_ice_ref'],
+                by_right=['game_id', 'period', 'SportlogiqPlayerID'],
+                tolerance=0.15,
+                check_sortedness=False
+            ).with_columns(
+                adjust_vectors(c('x', 'y', 'vx', 'vy', 'ax', 'ay')),
+                goalie_speed = magnitude_2d(c('vx'), c('vy'))
+            ).with_columns(
+                angle_to_shooter(c('shot_x'), c('shot_y'), c('x_adj'), c('y_adj')).alias('goalie_angle_to_shooter'),
+                inside_shooting_lane(c('shot_x'), c('shot_y'), c('x_adj'), c('y_adj')).alias('goalie_in_shooting_lane'),
+                inside_shadow_lane(c('shot_x'), c('shot_y'), c('x_adj'), c('y_adj'), lane_expansion=self.shadow_expansion).alias('goalie_in_shadow_lane'),
+                distance_to_point_2d(c('x_adj'), c('y_adj'), 89, 0).alias('goalie_dist_to_goal')
+            )
+        )
+
+    def full_output(self) -> pl.LazyFrame:
+        skater_summary = (
+            self.skater_data()
+            .group_by('game_id', 'period', 'shot_id')
+            .agg(
+                c('pressure').sum().alias('total_pressure'),
+                c('inside_shooting_lane').sum().alias('num_defenders_in_shooting_lane'),
+                c('inside_shadow_lane').sum().alias('num_defenders_in_shadow_lane'),
+            )
+        )
+
+        return (
+            self.shots_prepared
+            .join(
+                skater_summary,
+                on=['game_id', 'period', 'shot_id'],
+                how='left'
+            ).join(
+                self.goalie_data().select(
+                    c('game_id', 'period', 'shot_id',
+                      'goalie_angle_to_shooter', 'goalie_in_shooting_lane', 'goalie_in_shadow_lane', 'goalie_dist_to_goal', 'goalie_speed'),
+                    c('x_adj', 'y_adj').name.prefix('goalie_')
+                ),
+                on=['game_id', 'period', 'shot_id'],
+                how='left'
+            )
         )

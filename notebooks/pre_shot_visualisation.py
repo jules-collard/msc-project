@@ -73,11 +73,13 @@ def _(shots_with_tracking):
 
 
 @app.cell
-def _(shot_id_selector, shots_with_tracking):
+def _(pre_shot_data, shot_id_selector, shots_with_tracking):
     shot_tracking = shots_with_tracking.filter(c('shot_id') == shot_id_selector.value)
 
-    shot_tracking.select(c('defender_id', 'dist_to_shooter', 'angle_to_shooter', 'inside_shooting_lane', 'inside_shadow_lane', 'pressure')).sort(c('pressure'), descending=True)
-    return (shot_tracking,)
+    goalie_tracking = pre_shot_data.goalie_data().filter(c('shot_id') == shot_id_selector.value).collect()
+
+    # shot_tracking.select(c('defender_id', 'dist_to_shooter', 'angle_to_shooter', 'inside_shooting_lane', 'inside_shadow_lane', 'pressure')).sort(c('pressure'), descending=True)
+    return goalie_tracking, shot_tracking
 
 
 @app.cell
@@ -109,7 +111,14 @@ def _(shot_tracking):
 
 
 @app.cell
-def _(shadow_x_coords, shadow_y_coords, shot_tracking, x_coords, y_coords):
+def _(
+    goalie_tracking,
+    shadow_x_coords,
+    shadow_y_coords,
+    shot_tracking,
+    x_coords,
+    y_coords,
+):
     rink = NHLRink()
     fig, ax = plt.subplots()
     rink.draw(display_range='offense', rotation=90)
@@ -119,7 +128,7 @@ def _(shadow_x_coords, shadow_y_coords, shot_tracking, x_coords, y_coords):
         y=shot_tracking.select(c('y_adj')),
         dx=shot_tracking.select(c('vx_adj')), 
         dy=shot_tracking.select(c('vy_adj')),
-        facecolor='purple',
+        facecolor='black',
         alpha=0.4,
         # draw_kw={'display_range': 'ozone', 'rotation': 90}
     )
@@ -134,6 +143,24 @@ def _(shadow_x_coords, shadow_y_coords, shot_tracking, x_coords, y_coords):
         vmax=1,
         edgecolors='black',
     )
+
+    # Goalie Tracking
+    rink.scatter(
+        x=goalie_tracking.select(c('x_adj')),
+        y=goalie_tracking.select(c('y_adj')),
+        s=120,
+        c='purple'
+    )
+
+    rink.arrow(
+        x=goalie_tracking.select(c('x_adj')),
+        y=goalie_tracking.select(c('y_adj')),
+        dx=goalie_tracking.select(c('vx_adj')),
+        dy=goalie_tracking.select(c('vy_adj')),
+        facecolor='purple',
+        alpha=0.7
+    )
+
 
     # rink.text(
     #     x=shot_tracking.select(c('x_adj')) + 2,
