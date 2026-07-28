@@ -1,6 +1,10 @@
 import polars as pl
 from polars import col as c
 
+
+def _as_expr(value: pl.Expr | str) -> pl.Expr:
+    return c(value) if isinstance(value, str) else value
+
 def distance_2d(
     x1_expr: pl.Expr | str,
     y1_expr: pl.Expr | str,
@@ -32,6 +36,26 @@ def distance_to_point_2d(
         (x_expr - point_x).pow(2) + 
         (y_expr - point_y).pow(2)
     ).sqrt()
+
+def cross_product(
+    x1_expr: pl.Expr | str,
+    y1_expr: pl.Expr | str,
+    x2_expr: pl.Expr | str,
+    y2_expr: pl.Expr | str
+) -> pl.Expr:
+    """
+    Function to calculate the cross product of two 2D vectors.
+    The cross product is a scalar value that indicates the relative orientation of the two vectors.
+    A positive value indicates that the second vector is counter-clockwise from the first vector,
+    while a negative value indicates that it is clockwise.
+    """
+
+    x1_expr = c(x1_expr) if isinstance(x1_expr, str) else x1_expr
+    y1_expr = c(y1_expr) if isinstance(y1_expr, str) else y1_expr
+    x2_expr = c(x2_expr) if isinstance(x2_expr, str) else x2_expr
+    y2_expr = c(y2_expr) if isinstance(y2_expr, str) else y2_expr
+
+    return (x1_expr * y2_expr - y1_expr * x2_expr).alias("cross_product")
 
 def magnitude_2d(vx_expr: pl.Expr | str, vy_expr: pl.Expr | str) -> pl.Expr:
     """Returns a Polars expression to calculate the magnitude of a 2D vector."""
