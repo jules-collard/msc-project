@@ -112,6 +112,11 @@ class PreShotData:
                 c('pressure').sum().alias('total_pressure'),
                 c('inside_shooting_lane').sum().alias('num_defenders_in_shooting_lane'),
                 c('inside_shadow_lane').sum().alias('num_defenders_in_shadow_lane'),
+                (c('pressure_direction') == 'left').sum().alias('num_pressures_left'),
+                (c('pressure_direction') == 'right').sum().alias('num_pressures_right'),
+                (c('pressure_direction') == 'front').sum().alias('num_pressures_front'),
+                (c('pressure_direction') == 'back').sum().alias('num_pressures_back'),
+                pl.len().alias('num_tracked_defenders')
             )
         )
 
