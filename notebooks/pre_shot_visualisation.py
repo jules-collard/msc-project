@@ -158,9 +158,9 @@ def _(
 
 @app.cell
 def _():
-    d_front_slider = mo.ui.slider(start=5, stop=20, value=15, debounce=True, show_value=True, label="Min. Front Distance")
-    d_back_slider = mo.ui.slider(start=1, stop=10, value=5, debounce=True, show_value=True, label="Min. Back Distance")
-    q_slider = mo.ui.slider(start=0.5, stop=5, value=1.5, debounce=True, show_value=True, label="Decay Exponent", step=0.2)
+    d_front_slider = mo.ui.slider(start=5, stop=20, value=18, debounce=True, show_value=True, label="Max. Front Distance")
+    d_back_slider = mo.ui.slider(start=1, stop=10, value=5, debounce=True, show_value=True, label="Max. Back Distance")
+    q_slider = mo.ui.slider(start=0.5, stop=5, value=1, debounce=True, show_value=True, label="Decay Exponent", step=0.1)
     n_slider = mo.ui.slider(start=1, stop=10, value=5, debounce=True, show_value=True, label="Shape Exponent")
     c_slider = mo.ui.slider(start=0.1, stop=10, value=5, debounce=True, show_value=True, label="Shape Coefficient", step=0.1)
 

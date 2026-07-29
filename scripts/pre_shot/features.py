@@ -20,9 +20,9 @@ class PreShotData:
     player_id_mapping: pl.DataFrame
 
     shadow_expansion: float = 3.0
-    d_front: float = 15.0
+    d_front: float = 18.0
     d_back: float = 5.0
-    q: float = 1.5
+    q: float = 1.0
     n: float = 5.0
     c: float = 5.0
 
