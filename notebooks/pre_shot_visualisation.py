@@ -5,6 +5,7 @@ app = marimo.App(width="medium")
 
 with app.setup:
     import marimo as mo
+    import numpy as np
     import polars as pl
     from polars import col as c
     from hockey_rink import NHLRink
@@ -13,6 +14,9 @@ with app.setup:
 
     from data_readers import batch_read_entity_tracking, read_game_id_mapping
     from pre_shot.features import PreShotData
+    from pre_shot.pressure import pressure
+    from pre_shot.geometry import angle_to_shooter
+    from utils import distance_2d
 
 
 @app.cell
@@ -51,8 +55,17 @@ def _(game_id_mapping, game_id_selector):
 
 
 @app.cell
-def _(player_id_mapping, player_tracking, shots):
-    pre_shot_data = PreShotData(shots, player_tracking, player_id_mapping)
+def _(
+    c_slider,
+    d_back_slider,
+    d_front_slider,
+    n_slider,
+    player_id_mapping,
+    player_tracking,
+    q_slider,
+    shots,
+):
+    pre_shot_data = PreShotData(shots, player_tracking, player_id_mapping, d_front=d_front_slider.value, d_back=d_back_slider.value, q=q_slider.value, n=n_slider.value, c=c_slider.value)
     return (pre_shot_data,)
 
 
@@ -107,11 +120,59 @@ def _(shot_tracking):
 
     shadow_x_coords = [sl_x, sr_x, 89, 89]
     shadow_y_coords = [sl_y, sr_y, -(3+lane_expansion), 3+lane_expansion]
-    return shadow_x_coords, shadow_y_coords, x_coords, y_coords
+    return shadow_x_coords, shadow_y_coords, shot_x, shot_y, x_coords, y_coords
 
 
 @app.cell
 def _(
+    c_slider,
+    d_back_slider,
+    d_front_slider,
+    n_slider,
+    q_slider,
+    shot_x,
+    shot_y,
+):
+    x = np.linspace(0, 100, 140)
+    y = np.linspace(-42.5, 42.5, 140)
+    X, Y = np.meshgrid(x, y)
+
+    grid = (
+        pl.DataFrame({"x": X.ravel(), "y": Y.ravel()})
+        .with_columns(
+            pressure(
+                angle_to_shooter(pl.lit(shot_x), pl.lit(shot_y), c("x"), c("y")),
+                distance_2d(pl.lit(shot_x), pl.lit(shot_y), c("x"), c("y")),
+                d_front=d_front_slider.value,
+                d_back=d_back_slider.value,
+                q=q_slider.value,
+                n=n_slider.value,
+                c=c_slider.value
+            ).alias("pressure")
+        )
+    )
+
+    P = grid.select('pressure').to_numpy().reshape(X.shape)
+    return P, X, Y
+
+
+@app.cell
+def _():
+    d_front_slider = mo.ui.slider(start=5, stop=20, value=15, debounce=True, show_value=True, label="Min. Front Distance")
+    d_back_slider = mo.ui.slider(start=1, stop=10, value=5, debounce=True, show_value=True, label="Min. Back Distance")
+    q_slider = mo.ui.slider(start=0.5, stop=5, value=1.5, debounce=True, show_value=True, label="Decay Exponent", step=0.2)
+    n_slider = mo.ui.slider(start=1, stop=10, value=5, debounce=True, show_value=True, label="Shape Exponent")
+    c_slider = mo.ui.slider(start=0.1, stop=10, value=5, debounce=True, show_value=True, label="Shape Coefficient", step=0.1)
+
+    mo.hstack([d_front_slider, d_back_slider, q_slider, n_slider, c_slider])
+    return c_slider, d_back_slider, d_front_slider, n_slider, q_slider
+
+
+@app.cell
+def _(
+    P,
+    X,
+    Y,
     goalie_tracking,
     shadow_x_coords,
     shadow_y_coords,
@@ -121,7 +182,7 @@ def _(
 ):
     rink = NHLRink()
     fig, ax = plt.subplots()
-    rink.draw(display_range='offense', rotation=90)
+    rink.draw(display_range='ozone', rotation=90)
 
     rink.arrow(
         x=shot_tracking.select(c('x_adj')), 
@@ -174,6 +235,29 @@ def _(
         shot_tracking.select(c('shot_y')),
         s=30,
         c='blue',
+    )
+
+    X_pressure_plot, Y_pressure_plot = rink.convert_xy(X, Y, ax=ax)
+
+    ax.contourf(
+        X_pressure_plot,
+        Y_pressure_plot,
+        P,
+        levels=np.linspace(1e-3, 1, 12),
+        cmap="Reds",
+        alpha=0.5,
+        zorder=15,
+    )
+
+    ax.contour(
+        X_pressure_plot,
+        Y_pressure_plot,
+        P,
+        levels=[1e-3],
+        colors='black',
+        alpha=0.5,
+        zorder=15,
+        linestyle="--"
     )
 
     x_trans, y_trans = rink.convert_xy(x_coords, y_coords, ax=ax)
