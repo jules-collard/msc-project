@@ -58,7 +58,7 @@ def _(player_id_mapping, player_tracking, shots):
 
 @app.cell
 def _(pre_shot_data):
-    shots_with_tracking = pre_shot_data.skater_data().collect()
+    shots_with_tracking = pre_shot_data.defender_data().collect()
     return (shots_with_tracking,)
 
 

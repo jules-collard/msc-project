@@ -48,7 +48,7 @@ class PreShotData:
             .drop(c('segment_idx', 'clock_state'), cs.starts_with('kappa'))
         )
 
-    def skater_data(self) -> pl.LazyFrame:
+    def defender_data(self) -> pl.LazyFrame:
         return (
             self.shots_prepared
             .with_columns(
@@ -95,7 +95,8 @@ class PreShotData:
                 check_sortedness=False
             ).with_columns(
                 adjust_vectors(c('x', 'y', 'vx', 'vy', 'ax', 'ay')),
-                goalie_speed = magnitude_2d(c('vx'), c('vy'))
+                goalie_speed = magnitude_2d(c('vx'), c('vy')),
+                lateral_speed = c('vy').abs()
             ).with_columns(
                 angle_to_shooter(c('shot_x'), c('shot_y'), c('x_adj'), c('y_adj')).alias('goalie_angle_to_shooter'),
                 inside_shooting_lane(c('shot_x'), c('shot_y'), c('x_adj'), c('y_adj')).alias('goalie_in_shooting_lane'),
@@ -105,7 +106,7 @@ class PreShotData:
         )
 
     def full_output(self) -> pl.LazyFrame:
-        skater_summary = (
+        defender_summary = (
             self.skater_data()
             .group_by('game_id', 'period', 'shot_id')
             .agg(
@@ -123,13 +124,13 @@ class PreShotData:
         return (
             self.shots_prepared
             .join(
-                skater_summary,
+                defender_summary,
                 on=['game_id', 'period', 'shot_id'],
                 how='left'
             ).join(
                 self.goalie_data().select(
                     c('game_id', 'period', 'shot_id',
-                      'goalie_angle_to_shooter', 'goalie_in_shooting_lane', 'goalie_in_shadow_lane', 'goalie_dist_to_goal', 'goalie_speed'),
+                      'goalie_angle_to_shooter', 'goalie_in_shooting_lane', 'goalie_in_shadow_lane', 'goalie_dist_to_goal', 'goalie_speed', 'lateral_speed'),
                     c('x_adj', 'y_adj').name.prefix('goalie_')
                 ),
                 on=['game_id', 'period', 'shot_id'],
