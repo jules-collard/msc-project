@@ -119,19 +119,8 @@ def batch_read_rosters(patterns: list[str], lazy=True) -> pl.DataFrame | pl.Lazy
 
     return rosters.lazy() if lazy else rosters
 
-def read_id_mapping(path: str) -> dict[str, str]:
-    """
-    Function to read NHL/Sportlogiq player ID mappings, returning a dictionary of Sportlogiq -> NHL ID mappings.
-    """
-
-    mapping_dict = ( 
-        pl.read_csv(path)
-        .drop(c('PlayerName'))
-        .cast(pl.String)
-        .rows_by_key('SportlogiqPlayerID', unique=True)
-    )
-
-    return {key: value[0] for key, value in mapping_dict.items()}
+def read_player_id_mapping(path: str) -> pl.DataFrame:
+    return pl.read_csv(path).cast(pl.String)
 
 def read_game_id_mapping(path: str) -> pl.DataFrame:
     return (

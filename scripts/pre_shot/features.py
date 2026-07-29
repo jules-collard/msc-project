@@ -17,7 +17,7 @@ class PreShotData:
 
     shots: pl.LazyFrame
     player_tracking: pl.LazyFrame
-    player_id_mapping: pl.LazyFrame
+    player_id_mapping: pl.DataFrame
 
     shadow_expansion: float = 3.0
     d_front: float = 18.0
