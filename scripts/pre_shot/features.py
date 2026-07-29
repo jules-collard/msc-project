@@ -20,9 +20,11 @@ class PreShotData:
     player_id_mapping: pl.DataFrame
 
     shadow_expansion: float = 3.0
-    d_front: float = 18.0
+    d_front: float = 15.0
     d_back: float = 5.0
-    q: float = 0.8
+    q: float = 1.5
+    n: float = 5.0
+    c: float = 5.0
 
     @cached_property
     def shots_prepared(self) -> pl.LazyFrame:
@@ -71,7 +73,7 @@ class PreShotData:
                 inside_shadow_lane(c('shot_x'), c('shot_y'), c('x_adj'), c('y_adj'), lane_expansion=self.shadow_expansion),
                 dist_to_shooter = distance_2d(c('shot_x'), c('shot_y'), c('x_adj'), c('y_adj')),
             ).with_columns(
-                pressure(c('angle_to_shooter'), c('dist_to_shooter'), d_front=self.d_front, d_back=self.d_back, q=self.q)
+                pressure(c('angle_to_shooter'), c('dist_to_shooter'), d_front=self.d_front, d_back=self.d_back, q=self.q, n=self.n, c=self.c)
             ).with_columns(
                 pl.when(c('pressure') > 0).then(pressure_direction(c('angle_to_shooter'))).otherwise(None).alias('pressure_direction')
             )

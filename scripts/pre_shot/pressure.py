@@ -9,24 +9,27 @@ def pressure(
     dist_expr: pl.Expr | str,
     d_front: float = 18,
     d_back: float = 5,
-    q: float = 0.8
+    q: float = 0.8,
+    n: float = 3.0,
+    c: float = 0.3
 ) -> pl.Expr:
     """
     Function to calculate the pressure exerted by a defender on a shooter based on the angle and distance to the shooter.
     See Andrienko et al. (2017) for details on the pressure model.
 
     Arguments:
-        d_front: The maximum distance at which a defender can exert pressure on the shooter (in feet).
-        d_back: The minimum distance at which a defender can exert pressure on the shooter (in feet).
-        q: Exponent to regulate the speed of the distance decay,
-    
+        d_front: The maximum distance at which a defender can exert pressure on the shooter from the front (in feet).
+        d_back: The maximum distance at which a defender can exert pressure on the shooter from behind (in feet).
+        q: Exponent to regulate the speed of the distance decay
+        n: Exponent to regulate shape of oval
+        c: Linear Coefficient to regulate shape of oval
     """
     
     angle_expr = c(angle_expr) if isinstance(angle_expr, str) else angle_expr
     dist_expr = c(dist_expr) if isinstance(dist_expr, str) else dist_expr
 
     z = (1 - angle_expr.radians().cos()) / 2
-    L = d_front + (d_back - d_front) * (z.pow(3) + 0.3 * z) / 1.3
+    L = d_front + (d_back - d_front) * (z.pow(n) + c * z) / (1 + c)
     return (1 - dist_expr / L).clip(0,1).pow(q).alias("pressure")
 
 
