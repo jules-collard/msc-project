@@ -1,5 +1,7 @@
 import argparse
 from datetime import date
+from pathlib import Path
+
 import polars as pl
 from polars import col as c
 
@@ -52,7 +54,7 @@ def main():
     parser.add_argument(
         "-o", "--output_dir",
         type=str,
-        default="/output/post_shot_data.parquet",
+        default="/output/shot_data",
         help="Output directory to store the resulting parquet files.",
     )
 
@@ -110,8 +112,14 @@ def main():
     )
 
     print("Saving results...")
+    output_dir = Path(args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
     for game_id in combined.select(c('game_id')).unique().to_series().to_list():
         (
             combined.filter(c('game_id') == game_id)
-            .write_parquet(f"{args.output_dir}/{game_id}_shot_data.parquet")
+            .write_parquet(output_dir / f"{game_id}_shot_data.parquet")
         )
+
+if __name__ == "__main__":
+    main()
