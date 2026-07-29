@@ -2,8 +2,8 @@ import argparse
 from datetime import date
 from pathlib import Path
 
-import polars as pl
 from polars import col as c
+import polars.selectors as cs
 
 from scripts.data_readers import read_game_id_mapping, read_player_id_mapping, batch_read_events, batch_read_puck_tracking, batch_read_entity_tracking, batch_read_rosters
 from scripts.post_shot.features import PostShotData
@@ -108,8 +108,9 @@ def main():
     combined = post_shots.join(
         pre_shots,
         on=['game_id', 'period', 'shot_id'],
-        how='left'
-    )
+        how='left',
+        suffix='_dup'
+    ).drop(cs.ends_with('_dup'))
 
     print("Saving results...")
     output_dir = Path(args.output_dir)
