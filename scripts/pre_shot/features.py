@@ -107,7 +107,7 @@ class PreShotData:
 
     def full_output(self) -> pl.LazyFrame:
         defender_summary = (
-            self.skater_data()
+            self.defender_data()
             .group_by('game_id', 'period', 'shot_id')
             .agg(
                 c('pressure').sum().alias('total_pressure'),
