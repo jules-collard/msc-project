@@ -8,6 +8,7 @@ with app.setup:
     from polars import col as c
     import plotnine as p9
     from plotnine import ggplot, aes, geom_violin, labs
+    from great_tables import GT, html, md
 
     from data_readers import batch_read_shot_data
 
@@ -116,34 +117,50 @@ def _(caption, model_data):
 
 @app.cell
 def _(caption, model_data):
-    (
+    lane_summary = (
         model_data
-        .with_columns(pl.when(c('goal')).then(pl.lit('Goal')).otherwise(pl.lit('No Goal')).alias('goal'))
-        >> ggplot(aes(x='num_defenders_in_shooting_lane', y=p9.after_stat('prop'), fill='goal'))
-        + p9.geom_bar(show_legend=False)
-        + p9.scale_fill_discrete(direction=-1)
-        + p9.facet_wrap('goal')
-        + p9.theme_bw(base_size=10)
-        + p9.labs(title="Distribution of Defenders in Shooting Lane by Goal Outcome",
-                 y="Proportion", x="# Defenders in Shooting Lane",
-                 caption=caption)
+        .group_by(c('num_defenders_in_shooting_lane'))
+        .agg(
+            c('goal').mean().alias('success_rate'),
+            pl.len().alias('num_shots')
+        ).sort(c('num_defenders_in_shooting_lane'))
+    )
+
+    (
+        GT(lane_summary)
+        .tab_header("Shot Success Rates by No. of Defenders in Shooting Lane")
+        .tab_source_note(caption)
+        .cols_label(
+            num_defenders_in_shooting_lane=html("# Defenders in <br> Shooting Lane"),
+            success_rate = "Success Rate",
+            num_shots = "# Shots"
+        ).fmt_percent(columns="success_rate")
+        .data_color(columns="success_rate", palette="viridis", domain=[0, 0.1])
     )
     return
 
 
 @app.cell
 def _(caption, model_data):
-    (
+    shadow_summary = (
         model_data
-        .with_columns(pl.when(c('goal')).then(pl.lit('Goal')).otherwise(pl.lit('No Goal')).alias('goal'))
-        >> ggplot(aes(x='num_defenders_in_shadow_lane', y=p9.after_stat('prop'), fill='goal'))
-        + p9.geom_bar(show_legend=False)
-        + p9.scale_fill_discrete(direction=-1)
-        + p9.facet_wrap('goal')
-        + p9.theme_bw(base_size=10)
-        + p9.labs(title="Distribution of Defenders in Shadow Lane by Goal Outcome",
-                 y="Proportion", x="# Defenders in Shadow Lane",
-                 caption=caption)
+        .group_by(c('num_defenders_in_shadow_lane'))
+        .agg(
+            c('goal').mean().alias('success_rate'),
+            pl.len().alias('num_shots')
+        ).sort(c('num_defenders_in_shadow_lane'))
+    )
+
+    (
+        GT(shadow_summary)
+        .tab_header("Shot Success Rates by No. of Defenders in Shadow Lane")
+        .tab_source_note(caption)
+        .cols_label(
+            num_defenders_in_shadow_lane=html("# Defenders in <br> Shadow Lane"),
+            success_rate = "Success Rate",
+            num_shots = "# Shots"
+        ).fmt_percent(columns="success_rate")
+        .data_color(columns="success_rate", palette="viridis", domain=[0, 0.1])
     )
     return
 
