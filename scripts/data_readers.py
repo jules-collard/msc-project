@@ -119,6 +119,19 @@ def batch_read_rosters(patterns: list[str], lazy=True) -> pl.DataFrame | pl.Lazy
 
     return rosters.lazy() if lazy else rosters
 
+def batch_read_shot_data(patterns: list[str], lazy=True, **kwargs) -> pl.DataFrame | pl.LazyFrame:
+    """
+    Function to read multiple shot data files at once, using a glob pattern.
+    Returns a single polars dataframe with all shot data.
+    """
+
+    df = pl.scan_parquet(
+        patterns,
+        **kwargs
+    )
+
+    return df if lazy else df.collect()
+
 def read_player_id_mapping(path: str) -> pl.DataFrame:
     return pl.read_csv(path).cast(pl.String)
 
