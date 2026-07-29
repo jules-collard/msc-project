@@ -6,6 +6,7 @@ app = marimo.App(width="medium")
 with app.setup:
     import polars as pl
     from polars import col as c
+    import polars.selectors as cs
     import plotnine as p9
     from plotnine import ggplot, aes, geom_violin, labs
     from great_tables import GT, html, md
@@ -161,6 +162,77 @@ def _(caption, model_data):
             num_shots = "# Shots"
         ).fmt_percent(columns="success_rate")
         .data_color(columns="success_rate", palette="viridis", domain=[0, 0.1])
+    )
+    return
+
+
+@app.cell
+def _(caption, model_data):
+    pressure_side_summary = (
+        model_data
+        .with_columns(
+            (cs.starts_with('num_pressures') > 0).name.replace('num_', '', literal=True)
+        ).unpivot(
+            index=['game_id', 'shot_id', 'goal'],
+            on=cs.starts_with('pressures_'),
+            variable_name='pressure_side',
+            value_name='pressured'
+        ).with_columns(c('pressure_side').str.replace('pressures_', '', literal=True).str.to_titlecase())
+        .group_by('pressure_side', 'pressured')
+        .agg(c('goal').mean().alias('success_rate'))
+        .pivot(
+            on='pressured',
+            values='success_rate',
+            index=['pressure_side']
+        ).rename({'true': 'Pressure', 'false': 'No Pressure'})
+    )
+
+    (
+        GT(pressure_side_summary)
+        .tab_header("Shot Success Rates by Pressure Direction")
+        .tab_source_note(caption)
+        .cols_label(pressure_side = "Pressure Side")
+        .fmt_percent(columns=["No Pressure", "Pressure"])
+        .data_color(columns=["Pressure", "No Pressure"], palette="viridis", domain=[0, 0.1])
+    )
+    return
+
+
+@app.cell
+def _(caption, model_data):
+    shooter_pressure_side_summary = (
+        model_data
+        .with_columns(
+            (cs.starts_with('num_pressures') > 0).name.replace('num_', '', literal=True)
+        ).unpivot(
+            index=['game_id', 'shot_id', 'shooter_handedness', 'goal'],
+            on=cs.starts_with('pressures_'),
+            variable_name='pressure_side',
+            value_name='pressured'
+        ).with_columns(c('pressure_side').str.replace('pressures_', '', literal=True).str.to_titlecase())
+        .group_by('shooter_handedness', 'pressure_side', 'pressured')
+        .agg(c('goal').mean().alias('success_rate'))
+        .with_columns(pl.concat_str(c('shooter_handedness', 'pressured')).alias('pivot_col'))
+        .pivot(
+            on='pivot_col',
+            values='success_rate',
+            index='pressure_side',
+        )
+    )
+
+    (
+        GT(shooter_pressure_side_summary)
+        .tab_header("Shot Success Rates by Pressure Direction")
+        .tab_source_note(caption)
+        .tab_spanner(
+            label="Left Shot",
+            columns=["Ltrue", "Lfalse"]
+        ).tab_spanner(
+            label="Right Shot",
+            columns=["Rtrue", "Rfalse"]
+        ).cols_label(Ltrue= "Pressure", Lfalse="No Pressure", Rtrue="Pressure", Rfalse="No Pressure", pressure_side="Pressure Side")
+        .fmt_percent(columns=["Ltrue", "Lfalse", "Rtrue", "Rfalse"])
+        .data_color(columns=["Ltrue", "Lfalse", "Rtrue", "Rfalse"], palette="viridis", domain=[0, 0.1])
     )
     return
 
