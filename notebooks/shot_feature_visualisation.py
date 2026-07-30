@@ -23,7 +23,6 @@ def _():
         aes,
         batch_read_shot_data,
         c,
-        cs,
         distance_to_point_2d,
         ggplot,
         labs,
@@ -60,6 +59,21 @@ def _(c, model_data):
     caption = "Unblocked O-Zone Shots Oct.-Dec. 2025"
     mean_success_rate = model_data.filter(c('outcome') == 'successful').select(c('goal').mean()).item()
     return caption, mean_success_rate
+
+
+@app.cell
+def _(aes, caption, ggplot, labs, model_data, p9, theme_bw):
+    (
+        model_data
+        >> ggplot(aes(x='shot_speed', y=p9.after_stat('count'), fill='goal'))
+        + p9.geom_density(position = 'stack')
+        + p9.scale_fill_discrete(labels=["No Goal", "Goal"])
+        + theme_bw(base_size=10)
+        + p9.theme(legend_title=p9.element_blank())
+        + labs(title="Distribution of Shot Speed by Goal Outcome",
+                y="Count", x="Shot Speed (ft/s)", caption=caption)
+    )
+    return
 
 
 @app.cell
@@ -223,6 +237,23 @@ def _(
 def _(aes, caption, ggplot, labs, model_data, p9, theme_bw):
     (
         model_data
+        >> ggplot(aes(x='goalline_y', y=p9.after_stat('count'), fill='goal'))
+        + p9.geom_density(position = 'stack')
+        + p9.scale_fill_discrete(labels=["No Goal", "Goal"])
+        + p9.xlim(-25, 25)
+        + theme_bw(base_size=10)
+        + p9.theme(legend_title=p9.element_blank())
+        + labs(title="Horizontal Distribution of Shots by Goal Outcome",
+              y="Count", x="Horizontal Goalline Location (ft)",
+              caption=caption)
+    )
+    return
+
+
+@app.cell
+def _(aes, caption, ggplot, labs, model_data, p9, theme_bw):
+    (
+        model_data
         >> ggplot(aes(x='goal', y='goalline_y', fill='goal'))
         + p9.geom_violin(show_legend=False)
         # + p9.geom_sina(alpha=0.2, show_legend=False)
@@ -252,23 +283,6 @@ def _(aes, caption, ggplot, labs, model_data, p9, theme_bw):
         + labs(title="Vertical Distribution of Shots by Goal Outcome",
               x="", y="Vertical Goalline Location (ft)", caption=caption)
         + p9.theme(legend_position="none")
-        + theme_bw(base_size=10)
-    )
-    return
-
-
-@app.cell
-def _(aes, caption, ggplot, labs, model_data, p9, theme_bw):
-    (
-        model_data
-        >> ggplot(aes(x='goal', y='dist_to_corner', fill='goal'))
-        + p9.geom_violin(show_legend=False)
-        # + p9.geom_sina(alpha=0.2, show_legend=False)
-        + p9.geom_hline(yintercept=0, linetype="dotted")
-        + p9.coord_flip()
-        + p9.scale_x_discrete(labels=["No Goal", "Goal"])
-        + labs(title="Distribution of Shot Distance to Nearest Corner by Goal Outcome",
-              x="", y="Distance to Nearest Corner (ft)", caption=caption)
         + theme_bw(base_size=10)
     )
     return
@@ -309,31 +323,6 @@ def _(aes, caption, ggplot, labs, model_data, p9, theme_bw):
         + p9.ylim(0, 20)
         + labs(title="Distribution of Shot Distance to Goal Center by Goal Outcome",
               x="", y="Distance to Goal Center (ft)", caption=caption)
-        + p9.theme(legend_position="none")
-        + theme_bw(base_size=10)
-    )
-    return
-
-
-@app.cell
-def _(aes, c, cs, ggplot, labs, model_data, p9, theme_bw):
-    (
-        model_data
-        .select(c('goal'), cs.starts_with('polar_angle'))
-        .unpivot(on=cs.starts_with('polar_angle'), index='goal', value_name='angle', variable_name='angle_type')
-        .with_columns(c('angle_type').replace({
-            'polar_angle_abs': 'Symmetric',
-            'polar_angle_near_post': 'Near Post',
-            'polar_angle_raw': 'Static'
-        }))
-        >> ggplot(aes(x='goal', y='angle', fill='goal'))
-        + p9.geom_violin(show_legend=False)
-        # + p9.geom_jitter(alpha=0.2, show_legend=False)
-        + p9.facet_wrap('angle_type')
-        + p9.coord_flip()
-        + p9.scale_x_discrete(labels=["No Goal", "Goal"])
-        + labs(title="Distribution of Shot Angles by Reference Point",
-              x="", y="Angle (Degrees)")
         + p9.theme(legend_position="none")
         + theme_bw(base_size=10)
     )
