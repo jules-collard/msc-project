@@ -6,9 +6,10 @@ from polars import col as c
 import polars.selectors as cs
 
 from processing.tracking import calculate_elapsed_time, adjust_vectors
-from pre_shot.geometry import angle_to_shooter
+from pre_shot.geometry import angle_to_shooter, project_vector, visible_angle
 from pre_shot.pressure import pressure, pressure_direction
 from pre_shot.lanes import inside_shooting_lane, inside_shadow_lane
+from pre_shot.shot_types import ShotTypesEnum
 from utils import distance_2d, magnitude_2d, distance_to_point_2d
 
 
@@ -98,12 +99,37 @@ class PreShotData:
             ).with_columns(
                 adjust_vectors(c('x', 'y', 'vx', 'vy', 'ax', 'ay')),
                 goalie_speed = magnitude_2d(c('vx'), c('vy')),
-                lateral_speed = c('vy').abs()
+                goalie_lateral_speed = c('vy').abs()
             ).with_columns(
                 angle_to_shooter(c('shot_x'), c('shot_y'), c('x_adj'), c('y_adj')).alias('goalie_angle_to_shooter'),
                 inside_shooting_lane(c('shot_x'), c('shot_y'), c('x_adj'), c('y_adj')).alias('goalie_in_shooting_lane'),
                 inside_shadow_lane(c('shot_x'), c('shot_y'), c('x_adj'), c('y_adj'), lane_expansion=self.shadow_expansion).alias('goalie_in_shadow_lane'),
                 distance_to_point_2d(c('x_adj'), c('y_adj'), 89, 0).alias('goalie_dist_to_goal')
+            )
+        )
+
+    def shooter_data(self) -> pl.LazyFrame:
+        return (
+            self.shots_prepared
+            .sort(c('game_id', 'period', 'player_reference_id', 'shot_time'))
+            .join_asof(
+                self.player_tracking_prepared.sort(c('game_id', 'period', 'SportlogiqPlayerID', 'elapsed_time')),
+                left_on='shot_time',
+                right_on='elapsed_time',
+                by_left=['game_id', 'period', 'player_reference_id'],
+                by_right=['game_id', 'period', 'SportlogiqPlayerID'],
+                tolerance=0.15,
+                check_sortedness=False
+            ).with_columns(
+                adjust_vectors(c('x', 'y', 'vx', 'vy', 'ax', 'ay')),
+                shooter_speed = magnitude_2d(c('vx'), c('vy')),
+                shooter_lateral_speed = c('vy').abs()
+            ).with_columns(
+                project_vector(c('vx_adj'), c('vy_adj'), c('shot_x'), c('shot_y'), 89, 0).alias('shooter_goal_speed'),
+                distance_2d(c('shot_x'), c('shot_y'), 89, 0).alias('shooter_dist_to_goal'),
+                pl.arctan2(c('shot_y').abs(), 89 - c('shot_x')).degrees().alias('shooter_angle_to_goal'),
+                visible_angle(c('shot_x'), c('shot_y')),
+                c('flags').list.set_intersection(ShotTypesEnum.categories.to_list()).list.first().cast(ShotTypesEnum).alias('shot_type')
             )
         )
 
@@ -132,8 +158,15 @@ class PreShotData:
             ).join(
                 self.goalie_data().select(
                     c('game_id', 'period', 'shot_id',
-                      'goalie_angle_to_shooter', 'goalie_in_shooting_lane', 'goalie_in_shadow_lane', 'goalie_dist_to_goal', 'goalie_speed', 'lateral_speed'),
+                      'goalie_angle_to_shooter', 'goalie_in_shooting_lane', 'goalie_in_shadow_lane', 'goalie_dist_to_goal', 'goalie_speed', 'goalie_lateral_speed'),
                     c('x_adj', 'y_adj').name.prefix('goalie_')
+                ),
+                on=['game_id', 'period', 'shot_id'],
+                how='left'
+            ).join(
+                self.shooter_data().select(
+                    c('game_id', 'period', 'shot_id',
+                      'shooter_speed', 'shooter_lateral_speed', 'shooter_goal_speed', 'shooter_dist_to_goal', 'shooter_angle_to_goal', 'visible_angle', 'shot_type'),
                 ),
                 on=['game_id', 'period', 'shot_id'],
                 how='left'

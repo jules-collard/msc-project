@@ -46,39 +46,6 @@ def goal_vectors(
         pl.arctan2(tangent_speed, goal_speed).degrees().alias("angle_to_goal")
     ]
 
-def project_vector(
-    x_vec_expr: pl.Expr | str,
-    y_vec_expr: pl.Expr | str,
-    x_start_expr: pl.Expr | str,
-    y_start_expr: pl.Expr | str,
-    x_end_expr: pl.Expr | str,
-    y_end_expr: pl.Expr | str
-) -> pl.Expr:
-    """
-    Returns a polars expression to project a vector (x_vec, y_vec) onto the vector defined by (x_start, y_start) -> (x_end, y_end).
-    The result is the scalar projection of the vector onto the goal vector.
-    """
-
-    x_vec_expr = c(x_vec_expr) if isinstance(x_vec_expr, str) else x_vec_expr
-    y_vec_expr = c(y_vec_expr) if isinstance(y_vec_expr, str) else y_vec_expr
-    x_start_expr = c(x_start_expr) if isinstance(x_start_expr, str) else x_start_expr
-    y_start_expr = c(y_start_expr) if isinstance(y_start_expr, str) else y_start_expr
-    x_end_expr = c(x_end_expr) if isinstance(x_end_expr, str) else x_end_expr
-    y_end_expr = c(y_end_expr) if isinstance(y_end_expr, str) else y_end_expr
-
-    # Vector to project onto and distance
-    dx = x_end_expr - x_start_expr
-    dy = y_end_expr - y_start_expr
-    dist = magnitude_2d(dx, dy) + 1e-6  # Add small epsilon to avoid division by zero
-    
-    # Unit vector components
-    u_x = dx / dist
-    u_y = dy / dist
-
-    projection = ((x_vec_expr * u_x) + (y_vec_expr * u_y))
-    
-    return projection.alias('projection')
-
 def project_y_to_goalline(x1_col: str, y1_col: str, x2_col: str, y2_col: str) -> pl.Expr:
     """Returns a polars expression to project a vector onto the goal line, returning the y-coordinate of the projection."""
 

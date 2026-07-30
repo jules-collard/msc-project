@@ -21,8 +21,8 @@ with app.setup:
 
 @app.cell
 def _():
-    game_id_mapping = read_game_id_mapping("mappings/NHL_20252026_game_smt_sportlogiq_id_map.csv")
-    player_id_mapping = pl.read_csv("mappings/NHL_20252026_player_sportlogiq_id_map.csv").cast(pl.String)
+    game_id_mapping = read_game_id_mapping("mappings/NHL_20242025_20252026_game_smt_sportlogiq_id_map.csv")
+    player_id_mapping = pl.read_csv("mappings/NHL_20242025_20252026_player_sportlogiq_id_map.csv").cast(pl.String)
 
     game_ids = game_id_mapping.select(c('SportlogiqGameID')).to_series()
     game_id_selector = mo.ui.dropdown.from_series(game_ids, value=204631)

@@ -1,7 +1,7 @@
 import polars as pl
 from polars import col as c
 
-from utils import cross_product, _as_expr
+from utils import cross_product, _as_expr, magnitude_2d, distance_to_point_2d
 
 
 def _point_in_convex_polygon(
@@ -66,3 +66,55 @@ def angle_to_shooter(
     angle_diff_deg = ((angle_diff_rad.degrees() + 180) % 360) - 180  # Normalize to [-180, 180]
     
     return angle_diff_deg.alias("angle_to_shooter")
+
+def project_vector(
+    x_vec_expr: pl.Expr | str,
+    y_vec_expr: pl.Expr | str,
+    x_start_expr: pl.Expr | str,
+    y_start_expr: pl.Expr | str,
+    x_end_expr: pl.Expr | str,
+    y_end_expr: pl.Expr | str
+) -> pl.Expr:
+    """
+    Returns a polars expression to project a vector (x_vec, y_vec) onto the vector defined by (x_start, y_start) -> (x_end, y_end).
+    The result is the scalar projection of the vector onto the goal vector.
+    """
+
+    x_vec_expr = c(x_vec_expr) if isinstance(x_vec_expr, str) else x_vec_expr
+    y_vec_expr = c(y_vec_expr) if isinstance(y_vec_expr, str) else y_vec_expr
+    x_start_expr = c(x_start_expr) if isinstance(x_start_expr, str) else x_start_expr
+    y_start_expr = c(y_start_expr) if isinstance(y_start_expr, str) else y_start_expr
+    x_end_expr = c(x_end_expr) if isinstance(x_end_expr, str) else x_end_expr
+    y_end_expr = c(y_end_expr) if isinstance(y_end_expr, str) else y_end_expr
+
+    # Vector to project onto and distance
+    dx = x_end_expr - x_start_expr
+    dy = y_end_expr - y_start_expr
+    dist = magnitude_2d(dx, dy) + 1e-6  # Add small epsilon to avoid division by zero
+    
+    # Unit vector components
+    u_x = dx / dist
+    u_y = dy / dist
+
+    projection = ((x_vec_expr * u_x) + (y_vec_expr * u_y))
+    
+    return projection.alias('projection')
+
+def visible_angle(x_expr: pl.Expr | str, y_expr: pl.Expr | str) -> pl.Expr:
+    """
+    Returns a polars expression to calculate the visible angle from a point (x, y) to the goal,
+    where the angle is the angle subtended by the goal posts at the point (x, y).
+    """
+    x_expr = _as_expr(x_expr)
+    y_expr = _as_expr(y_expr)
+
+    GOAL_X = 89.0
+    GOAL_Y_1 = 3.0
+    GOAL_Y_2 = -3.0
+
+    d_1 = distance_to_point_2d(x_expr, y_expr, GOAL_X, GOAL_Y_1)
+    d_2 = distance_to_point_2d(x_expr, y_expr, GOAL_X, GOAL_Y_2)
+    ratio = (d_1.pow(2) + d_2.pow(2) - 6.0 ** 2) / (2 * d_1 * d_2 + 1e-6)  # Add small epsilon to avoid division by zero
+    angle = ratio.arccos().degrees() # Law of cosines
+    
+    return angle.alias('visible_angle')
