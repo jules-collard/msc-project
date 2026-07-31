@@ -80,20 +80,20 @@ def main():
     SMT_ids = games.select(c('SMTGameID')).to_series().to_list()
 
     print("Reading rosters...")
-    player_info = batch_read_rosters([f"/data/sportlogiq/*/games/{id}/*_gameroster.json" for id in sportlogiq_ids])
+    player_info = batch_read_rosters([f"/data/sportlogiq*/*/games/{id}/*_gameroster.json" for id in sportlogiq_ids])
 
     print("Reading events...")
-    events = batch_read_events([f"/data/sportlogiq/*/games/{id}/*_sapifullevents.json" for id in sportlogiq_ids])
+    events = batch_read_events([f"/data/sportlogiq*/*/games/{id}/*_sapifullevents.json" for id in sportlogiq_ids])
 
     print("Reading player tracking...")
     player_tracking = batch_read_entity_tracking(
-        [f"/data/smtoasis/*/games/{id}/*_entity_tracking_processed_measurements.parquet" for id in SMT_ids],
+        [f"/data/smtoasis*/*/games/{id}/*_entity_tracking_processed_measurements.parquet" for id in SMT_ids],
         mapping=games.lazy()
     )
 
     print("Reading puck tracking...")
     puck_tracking = batch_read_puck_tracking(
-        [f"/data/smtoasis/*/games/{id}/*_puck_tracking_raw_measurements.parquet" for id in SMT_ids],
+        [f"/data/smtoasis*/*/games/{id}/*_puck_tracking_raw_measurements.parquet" for id in SMT_ids],
         mapping=games.lazy()
     )
 
