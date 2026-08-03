@@ -1,6 +1,6 @@
 import lightgbm as lgb
 import xgboost as xgb
-from imblearn.combine import SMOTENN
+from imblearn.combine import SMOTEENN
 from imblearn.over_sampling import SMOTE
 from imblearn.pipeline import Pipeline
 from imblearn.under_sampling import RandomUnderSampler
@@ -22,18 +22,22 @@ class PipelineBuilder:
         if imbalance_strategy == 'SMOTE':
             steps.append(('sampler', SMOTE(sampling_strategy=params.pop('sampling_strategy'))))
         elif imbalance_strategy == 'SMOTENN':
-            steps.append(('sampler', SMOTENN(sampling_strategy=params.pop('sampling_strategy'))))
+            steps.append(('sampler', SMOTEENN(sampling_strategy=params.pop('sampling_strategy'))))
         elif imbalance_strategy == 'RU':
             steps.append(('sampler', RandomUnderSampler(sampling_strategy=params.pop('sampling_strategy', 0.5))))
         elif imbalance_strategy == 'WCE':
             wce_weight = params.pop('wce_weight')
+            if framework == 'lightgbm' or framework == 'xgboost':
+                params['scale_pos_weight'] = wce_weight
+            else:
+                params['class_weight'] = {0: 1.0, 1: wce_weight}
 
-        if framework == 'LightGBM':
-            clf = lgb.LGBMClassifier(objective='binary', scale_pos_weight=wce_weight, **params)
-        elif framework == 'XGBoost':
-            clf = xgb.XGBClassifier(objective='binary:logistic', scale_pos_weight=wce_weight, **params)
-        elif framework == 'LogisticRegression':
-            clf = LogisticRegression(**params, class_weight={0: 1.0, 1: wce_weight})
+        if framework == 'lightgbm':
+            clf = lgb.LGBMClassifier(objective='binary', **params)
+        elif framework == 'xgboost':
+            clf = xgb.XGBClassifier(objective='binary:logistic', **params)
+        elif framework == 'logistic':
+            clf = LogisticRegression(**params)
             
         steps.append(('classifier', clf))
         

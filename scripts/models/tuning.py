@@ -1,6 +1,6 @@
 import numpy as np
-from sklearn.metrics import average_precision_score, make_scorer
-from sklearn.model_selection import cross_val_score, GroupKFold
+from sklearn.metrics import average_precision_score, make_scorer, roc_auc_score
+from sklearn.model_selection import cross_validate, GroupKFold
 from optuna.trial import Trial
 
 from models.types import Framework, ImbalanceStrategy
@@ -26,17 +26,22 @@ class OptunaObjective:
 
         pipeline = PipelineBuilder.build(self.framework, self.imbalance_strategy, params)
         
-        # 4. Score using Cross-Validation (Average Precision = PR-AUC)
         pr_auc_scorer = make_scorer(average_precision_score, response_method='predict_proba')
-        scores = cross_val_score(
+        roc_auc_scorer = make_scorer(roc_auc_score, response_method='predict_proba')
+        cv_results = cross_validate(
             pipeline, self.X, self.y, 
             groups=self.groups, 
             cv=self.cv, 
-            scoring=pr_auc_scorer,
+            scoring={'pr_auc': pr_auc_scorer, 'roc_auc': roc_auc_scorer},
             n_jobs=-1 # Run folds in parallel
         )
+
+        mean_pr_auc = cv_results['test_pr_auc'].mean()
+        mean_roc_auc = cv_results['test_roc_auc'].mean()
+
+        trial.set_user_attr("roc_auc", mean_roc_auc) # Strore ROC AUC for later analysis
         
-        return scores.mean()
+        return mean_pr_auc
         
     def _get_param_space(self, trial: Trial, framework: Framework) -> dict:
         if framework == 'xgboost':
