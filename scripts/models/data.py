@@ -1,4 +1,5 @@
 import polars as pl
+from polars import col as c
 import numpy as np
 from sklearn.model_selection import train_test_split
 
@@ -12,7 +13,6 @@ class DataSplitter:
         target_col: str,
         group_col: str = 'game_id',
         train_ids: np.ndarray | None = None,
-        val_ids: np.ndarray | None = None,
         test_ids: np.ndarray | None = None
     ):
         self.data = data
@@ -66,3 +66,17 @@ class DataSplitter:
         X = data.select(self.feature_cols).to_numpy()
         y = data.select(self.target_col).to_numpy().flatten()
         return X, y
+
+
+def prepare_data(data: pl.DataFrame | pl.LazyFrame) -> pl.DataFrame | pl.LazyFrame:
+    return (
+        data
+        .with_columns(
+            c('shot_x').fill_null(c('x_adj_coord')),
+            c('shot_y').fill_null(c('y_adj_coord')),
+            c('shot_type').cast(pl.Int16) # Cast enum to integer encoding
+        ).filter(
+            c('opposing_team_goalie_on_ice_ref').is_not_null(), # No empty nets
+            c('shot_x') >= 0,
+        )
+    )

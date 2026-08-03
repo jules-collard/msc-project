@@ -23,8 +23,8 @@ class ExperimentRunner:
         self.X_train, self.y_train, self.X_val, self.y_val, self.groups_train = self.data_splitter.get_split_data()
 
     def run_all(self):
-        frameworks = ['logistic', 'xgboost', 'lightgbm']
-        strategies = ['SMOTE', 'RU', 'WCE', 'None']
+        frameworks = ['lightgbm', 'xgboost']
+        strategies = ['RO', 'RU', 'WCE', 'None']
         
         best_score = 0
         results = []
@@ -36,7 +36,7 @@ class ExperimentRunner:
                 # Find optimal hyperparameters for given setup
                 objective = OptunaObjective(self.X_train, self.y_train, self.groups_train, self.cv, framework, strategy)
                 study = optuna.create_study(direction='maximize')
-                study.optimize(objective, n_trials=30)
+                study.optimize(objective, n_trials=30, n_jobs=1)
 
                 info = {
                     'framework': framework,

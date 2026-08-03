@@ -1,7 +1,7 @@
 import lightgbm as lgb
 import xgboost as xgb
 from imblearn.combine import SMOTEENN
-from imblearn.over_sampling import SMOTE
+from imblearn.over_sampling import SMOTE, RandomOverSampler
 from imblearn.pipeline import Pipeline
 from imblearn.under_sampling import RandomUnderSampler
 from sklearn.linear_model import LogisticRegression
@@ -14,15 +14,17 @@ class PipelineBuilder:
     def build(
         framework: Framework,
         imbalance_strategy: ImbalanceStrategy,
-        params: dict
+        params: dict,
     ):
         steps = []
         
         # 1. Inject the Sampling Strategy
-        if imbalance_strategy == 'SMOTE':
-            steps.append(('sampler', SMOTE(sampling_strategy=params.pop('sampling_strategy'))))
-        elif imbalance_strategy == 'SMOTENN':
-            steps.append(('sampler', SMOTEENN(sampling_strategy=params.pop('sampling_strategy'))))
+        # if imbalance_strategy == 'SMOTE':
+        #     steps.append(('sampler', SMOTE(sampling_strategy=params.pop('sampling_strategy'))))
+        # elif imbalance_strategy == 'SMOTENN':
+        #     steps.append(('sampler', SMOTEENN(sampling_strategy=params.pop('sampling_strategy'))))
+        if imbalance_strategy == 'RO':
+            steps.append(('sampler', RandomOverSampler(sampling_strategy=params.pop('sampling_strategy', 0.5))))
         elif imbalance_strategy == 'RU':
             steps.append(('sampler', RandomUnderSampler(sampling_strategy=params.pop('sampling_strategy', 0.5))))
         elif imbalance_strategy == 'WCE':

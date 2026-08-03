@@ -19,7 +19,7 @@ class OptunaObjective:
     def __call__(self, trial: Trial) -> float:
         params = self._get_param_space(trial, self.framework)
 
-        if self.imbalance_strategy in ['SMOTE', 'SMOTENN', 'RU']:
+        if self.imbalance_strategy in ['SMOTE', 'SMOTENN', 'RU', 'RO']:
             params['sampling_strategy'] = trial.suggest_float('sampling_strategy', 0.2, 1.0) # 20% to 50% split
         elif self.imbalance_strategy == 'WCE':
             params['wce_weight'] = trial.suggest_float('wce_weight', 1, 10)
@@ -33,7 +33,6 @@ class OptunaObjective:
             groups=self.groups, 
             cv=self.cv, 
             scoring={'pr_auc': pr_auc_scorer, 'roc_auc': roc_auc_scorer},
-            n_jobs=-1 # Run folds in parallel
         )
 
         mean_pr_auc = cv_results['test_pr_auc'].mean()
