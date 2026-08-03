@@ -21,50 +21,42 @@ class DataSplitter:
         self.game_ids = data.select(group_col).unique().to_numpy().flatten()
 
         self.train_ids = train_ids
-        self.val_ids = val_ids
         self.test_ids = test_ids
 
-    def split(self, val_size: float = 0.2, test_size: float = 0.2, random_state: int = 50) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    def split(self, test_size: float = 0.3, random_state: int = 50) -> None:
         """
-        Split the data into training, validation and test sets based on the specified validation size.
+        Split the data into training and test/validation sets based on the specified test size.
         The split is done in a way that ensures that all samples from the same game are kept together.
         """
-        assert 0 < val_size < 1
         assert 0 < test_size < 1
-        assert val_size + test_size < 1
 
-        train_ids, not_train_ids = train_test_split(self.game_ids, test_size=val_size + test_size, random_state=random_state)
-        val_ids, test_ids = train_test_split(not_train_ids, test_size=test_size / (val_size + test_size), random_state=random_state)
+        train_ids, test_ids = train_test_split(self.game_ids, test_size=test_size, random_state=random_state)
 
         self.train_ids = train_ids
-        self.val_ids = val_ids
         self.test_ids = test_ids
 
-    def get_split_data(self) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    def get_split_data(self) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """
-        Get the training, validation, and test data based on the previously split game IDs.
+        Get the training and test data based on the previously split game IDs.
         """
-        if self.train_ids is None or self.val_ids is None or self.test_ids is None:
+        if self.train_ids is None or self.test_ids is None:
             self.split()
 
         train_data = self.data.filter(pl.col('game_id').is_in(self.train_ids))
-        val_data = self.data.filter(pl.col('game_id').is_in(self.val_ids))
         test_data = self.data.filter(pl.col('game_id').is_in(self.test_ids))
 
         X_train, y_train = self._extract_features_and_target(train_data)
-        X_val, y_val = self._extract_features_and_target(val_data)
         X_test, y_test = self._extract_features_and_target(test_data)
 
         groups = train_data.select('game_id').to_numpy().flatten()
 
-        return X_train, y_train, X_val, y_val, X_test, y_test, groups
+        return X_train, y_train, X_test, y_test, groups
 
-    def load_split(self, train_ids: np.ndarray, val_ids: np.ndarray, test_ids: np.ndarray) -> None:
+    def load_split(self, train_ids: np.ndarray, test_ids: np.ndarray) -> None:
         """
         Load the split data based on the provided game IDs for training, validation, and testing.
         """
         self.train_ids = train_ids
-        self.val_ids = val_ids
         self.test_ids = test_ids
     
     def _extract_features_and_target(self, data: pl.DataFrame) -> tuple[np.ndarray, np.ndarray]:

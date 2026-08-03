@@ -5,6 +5,7 @@ from sklearn.model_selection import GroupKFold
 from models.data import DataSplitter
 from models.tuning import OptunaObjective
 from models.pipelines import PipelineBuilder
+from models.calibration import Calibrator
 
 
 class ExperimentRunner:
@@ -19,7 +20,7 @@ class ExperimentRunner:
         self.cv = GroupKFold(n_splits=3, shuffle=True, random_state=78)
         self.best_model_info = None
 
-        self.X_train, self.y_train, self.X_val, self.y_val, self.X_test, self.y_test, self.groups_train = self.data_splitter.get_split_data()
+        self.X_train, self.y_train, self.X_val, self.y_val, self.groups_train = self.data_splitter.get_split_data()
 
     def run_all(self):
         frameworks = ['logistic', 'xgboost', 'lightgbm']
@@ -53,16 +54,23 @@ class ExperimentRunner:
                     
         return results
 
+    def run_model(self, info: dict, calibrate: bool = True):
+        framework = info['framework']
+        strategy = info['strategy']
+        best_params = info['best_params']
+
+        print(f"Training model: {framework} with {strategy}...")
+        pipeline = PipelineBuilder.build(framework, strategy, best_params)
+        pipeline.fit(self.X_train, self.y_train)
+
+        if calibrate:
+            calibrated_pipeline = Calibrator.calibrate(pipeline, self.X_val, self.y_val, method='isotonic')
+            return calibrated_pipeline
+        else:
+            return pipeline
+
     def run_best(self):
         if not self.best_model_info:
             raise ValueError("No best model info available. Run run_all() first.")
-        
-        framework = self.best_model_info['framework']
-        strategy = self.best_model_info['strategy']
-        best_params = self.best_model_info['best_params']
 
-        print(f"Retraining best model: {framework} with {strategy}...")
-        pipeline = PipelineBuilder.build(framework, strategy, best_params)
-        pipeline.fit(self.X_train, self.y_train)
-        
-        return pipeline  # Return the trained pipeline for further evaluation
+        return self.run_model(self.best_model_info, calibrate=True)
