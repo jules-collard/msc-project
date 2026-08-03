@@ -40,6 +40,7 @@ class DataSplitter:
         Get the training and test data based on the previously split game IDs.
         """
         if self.train_ids is None or self.test_ids is None:
+            print("No train/test split found. Performing a new split with default parameters.")
             self.split()
 
         train_data = self.data.filter(pl.col('game_id').is_in(self.train_ids))
@@ -52,12 +53,19 @@ class DataSplitter:
 
         return X_train, y_train, X_test, y_test, groups
 
-    def load_split(self, train_ids: np.ndarray, test_ids: np.ndarray) -> None:
+    def load_split(self, path: str) -> None:
         """
-        Load the split data based on the provided game IDs for training, validation, and testing.
+        Load the split data from a file.
         """
-        self.train_ids = train_ids
-        self.test_ids = test_ids
+        data = np.load(path)
+        self.train_ids = data['train_ids']
+        self.test_ids = data['test_ids']
+
+    def save_split(self, path: str) -> None:
+        """
+        Save the current split of game IDs to a file.
+        """
+        np.savez(path, train_ids=self.train_ids, test_ids=self.test_ids)
     
     def _extract_features_and_target(self, data: pl.DataFrame) -> tuple[np.ndarray, np.ndarray]:
         """

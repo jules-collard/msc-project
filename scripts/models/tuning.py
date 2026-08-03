@@ -19,10 +19,10 @@ class OptunaObjective:
     def __call__(self, trial: Trial) -> float:
         params = self._get_param_space(trial, self.framework)
 
-        if self.imbalance_strategy in ['SMOTE', 'SMOTENN', 'RU', 'RO']:
+        if self.imbalance_strategy in ['RU', 'RO']:
             params['sampling_strategy'] = trial.suggest_float('sampling_strategy', 0.2, 1.0) # 20% to 50% split
         elif self.imbalance_strategy == 'WCE':
-            params['wce_weight'] = trial.suggest_float('wce_weight', 1, 10)
+            params['wce_weight'] = trial.suggest_float('wce_weight', 1.0, 5.0)
 
         pipeline = PipelineBuilder.build(self.framework, self.imbalance_strategy, params)
         
@@ -47,8 +47,10 @@ class OptunaObjective:
             return self._get_xgb_param_space(trial)
         elif framework == 'lightgbm':
             return self._get_lgb_param_space(trial)
-        elif framework == 'logistic':
-            return self._get_logistic_param_space(trial)
+        elif framework == 'xgboost-dart':
+            return self._get_xgb_dart_param_space(trial)
+        elif framework == 'lightgbm-dart':
+            return self._get_lgb_dart_param_space(trial)
         else:
             raise ValueError(f"Unsupported framework: {framework}")
 
@@ -60,8 +62,10 @@ class OptunaObjective:
             'max_depth': trial.suggest_int('max_depth', 3, 9),
             
             # Regularization & Overfitting Prevention
-            'min_child_weight': trial.suggest_int('min_child_weight', 1, 20),
-            'gamma': trial.suggest_float('gamma', 1e-4, 1.0, log=True),
+            'min_child_weight': trial.suggest_float('min_child_weight', 0.1, 10.0, log=True),
+            'gamma': trial.suggest_float('gamma', 1e-4, 1.0, log=True), # Min. gain to split
+            'lambda': trial.suggest_float('lambda', 1e-4, 10.0, log=True), # L2 regularisation
+            'alpha': trial.suggest_float('alpha', 1e-4, 10.0, log=True), # L1 regularisation
             
             # Stochastic Elements
             'subsample': trial.suggest_float('subsample', 0.6, 1.0),
@@ -71,28 +75,39 @@ class OptunaObjective:
         }
         return params
 
+    def _get_xgb_dart_param_space(self, trial: Trial) -> dict:
+        params = self._get_xgb_param_space(trial)
+        params['booster'] = 'dart'
+        params['rate_drop'] = trial.suggest_float('rate_drop', 0.05, 0.3)
+        return params
+
     def _get_lgb_param_space(self, trial):
         params = {
             # Core Structure
             'n_estimators': trial.suggest_int('n_estimators', 100, 1000),
             'learning_rate': trial.suggest_float('learning_rate', 1e-3, 0.3, log=True),
-            'num_leaves': trial.suggest_int('num_leaves', 20, 150),
-            'max_depth': trial.suggest_int('max_depth', 3, 10),
+            'num_leaves': trial.suggest_int('num_leaves', 20, 500),
+            'max_depth': trial.suggest_int('max_depth', 3, 12),
             
             # Regularization & Overfitting Prevention
-            'min_child_samples': trial.suggest_int('min_child_samples', 20, 150),
-            'min_child_weight': trial.suggest_float('min_child_weight', 1e-3, 10.0, log=True),
+            'min_data_in_leaf': trial.suggest_int('min_data_in_leaf', 20, 150),
+            'min_gain_to_split': trial.suggest_float('min_gain_to_split', 1e-4, 1, log=True),
+            'lambda_l1': trial.suggest_float('lambda_l1', 1e-4, 10.0, log=True),
+            'lambda_l2': trial.suggest_float('lambda_l2', 1e-4, 10.0, log=True),
             
             # Stochastic Elements
-            'subsample': trial.suggest_float('subsample', 0.6, 1.0),
-            'subsample_freq': trial.suggest_int('subsample_freq', 1, 7),
-            'colsample_bytree': trial.suggest_float('colsample_bytree', 0.6, 1.0),
+            'bagging_fraction': trial.suggest_float('bagging_fraction', 0.7, 1.0),
+            'bagging_freq': trial.suggest_int('bagging_freq', 0, 8),
+            'feature_fraction': trial.suggest_float('feature_fraction', 0.8, 1.0),
 
             'verbosity': -1,
         }
         return params
 
-    def _get_logistic_param_space(self, trial: Trial):
-        return {
-            'l1_ratio': 0.0 # L2 regularisation
-        }
+    def _get_lgb_dart_param_space(self, trial: Trial) -> dict:
+        params: dict = self._get_lgb_param_space(trial)
+        params['boosting'] = 'dart'
+        params['drop_rate'] = trial.suggest_float('drop_rate', 0.05, 0.3)
+        # Higher min. learning rate as GBDT is used for first 1/learning_rate iterations
+        params['learning_rate'] = trial.suggest_float('learning_rate', 3e-3, 0.3, log=True)
+        return params

@@ -17,6 +17,7 @@ __marimo__/
 data/
 mappings/
 output/
+models/
 
 # Misc
 scripts/save_post_shot_data.py

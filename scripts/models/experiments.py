@@ -19,15 +19,16 @@ class ExperimentRunner:
         self.data_splitter = DataSplitter(data, feature_cols, target_col, **kwargs)
         self.cv = GroupKFold(n_splits=3, shuffle=True, random_state=78)
         self.best_model_info = None
+        self.results = []
 
         self.X_train, self.y_train, self.X_val, self.y_val, self.groups_train = self.data_splitter.get_split_data()
 
     def run_all(self):
-        frameworks = ['lightgbm', 'xgboost']
-        strategies = ['RO', 'RU', 'WCE', 'None']
+        frameworks = ['lightgbm', 'xgboost', 'lightgbm-dart', 'xgboost-dart']
+        strategies = ['RO', 'RU', 'WCE']
         
         best_score = 0
-        results = []
+        self.results = []
         
         for framework in frameworks:
             for strategy in strategies:
@@ -36,7 +37,7 @@ class ExperimentRunner:
                 # Find optimal hyperparameters for given setup
                 objective = OptunaObjective(self.X_train, self.y_train, self.groups_train, self.cv, framework, strategy)
                 study = optuna.create_study(direction='maximize')
-                study.optimize(objective, n_trials=30, n_jobs=1)
+                study.optimize(objective, n_trials=50, n_jobs=1)
 
                 info = {
                     'framework': framework,
@@ -50,18 +51,18 @@ class ExperimentRunner:
                     best_score = study.best_value
                     self.best_model_info = info
                 
-                results.append(info)
+                self.results.append(info)
                     
-        return results
+        return self.results
 
-    def run_model(self, info: dict, calibrate: bool = True):
+    def run_model(self, info: dict, calibrate: bool = True, **params):
         framework = info['framework']
         strategy = info['strategy']
         best_params = info['best_params']
 
         print(f"Training model: {framework} with {strategy}...")
         pipeline = PipelineBuilder.build(framework, strategy, best_params)
-        pipeline.fit(self.X_train, self.y_train)
+        pipeline.fit(self.X_train, self.y_train, **params)
 
         if calibrate:
             calibrated_pipeline = Calibrator.calibrate(pipeline, self.X_val, self.y_val, method='isotonic')
