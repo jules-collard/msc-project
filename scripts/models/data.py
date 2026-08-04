@@ -12,29 +12,26 @@ class DataSplitter:
         feature_cols: list[str],
         target_col: str,
         group_col: str = 'game_id',
-        train_ids: np.ndarray | None = None,
-        test_ids: np.ndarray | None = None,
-        split_path: str | None = None
+        split_path: str | None = None,
+        seed: int | None = None
     ):
         self.data = data
         self.feature_cols = feature_cols
         self.target_col = target_col
         self.game_ids = data.select(group_col).unique().to_numpy().flatten()
+        self.seed = seed
 
         if split_path is not None:
             self.load_split(split_path)
-        else:
-            self.train_ids = train_ids
-            self.test_ids = test_ids
 
-    def split(self, test_size: float = 0.3, random_state: int = 50) -> None:
+    def split(self, test_size: float = 0.3) -> None:
         """
         Split the data into training and test/validation sets based on the specified test size.
         The split is done in a way that ensures that all samples from the same game are kept together.
         """
         assert 0 < test_size < 1
 
-        train_ids, test_ids = train_test_split(self.game_ids, test_size=test_size, random_state=random_state)
+        train_ids, test_ids = train_test_split(self.game_ids, test_size=test_size, random_state=self.seed)
 
         self.train_ids = train_ids
         self.test_ids = test_ids
@@ -61,6 +58,7 @@ class DataSplitter:
         """
         Load the split data from a file.
         """
+        print(f"Loading train/test split from {path}...")
         data = np.load(path, allow_pickle=True)
         self.train_ids = data['train_ids']
         self.test_ids = data['test_ids']

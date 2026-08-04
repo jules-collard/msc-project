@@ -8,13 +8,14 @@ from models.pipelines import PipelineBuilder
 
 
 class OptunaObjective:
-    def __init__(self, X, y, groups, cv_splitter, framework, imbalance_strategy):
+    def __init__(self, X, y, groups, cv_splitter, framework, imbalance_strategy, seed: int | None = None):
         self.X: np.ndarray = X
         self.y: np.ndarray = y
         self.groups: np.ndarray = groups
         self.cv: GroupKFold = cv_splitter
         self.framework: Framework = framework
         self.imbalance_strategy: ImbalanceStrategy = imbalance_strategy
+        self.seed = seed
 
     def __call__(self, trial: Trial) -> float:
         params = self._get_param_space(trial, self.framework)
@@ -24,7 +25,7 @@ class OptunaObjective:
         elif self.imbalance_strategy == 'WCE':
             params['wce_weight'] = trial.suggest_float('wce_weight', 1.0, 5.0)
 
-        pipeline = PipelineBuilder.build(self.framework, self.imbalance_strategy, params)
+        pipeline = PipelineBuilder.build(self.framework, self.imbalance_strategy, params, seed=self.seed)
         
         pr_auc_scorer = make_scorer(average_precision_score, response_method='predict_proba')
         roc_auc_scorer = make_scorer(roc_auc_score, response_method='predict_proba')

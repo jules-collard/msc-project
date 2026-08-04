@@ -38,6 +38,13 @@ def main():
     )
 
     parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="Random seed for reproducibility."
+    )
+
+    parser.add_argument(
         "--frameworks",
         nargs='+',
         default=['xgboost-dart', 'lightgbm-dart', 'lightgbm', 'xgboost'],
@@ -73,7 +80,7 @@ def main():
     args = parser.parse_args()
 
     data = batch_read_shot_data(args.data_pattern).pipe(prepare_data)
-    experiment = ExperimentRunner(data.collect(), pre_shot_features, "goal", split_path=args.split_path)
+    experiment = ExperimentRunner(data.collect(), pre_shot_features, "goal", split_path=args.split_path, seed=args.seed)
 
     if args.info_log:
         optuna.logging.set_verbosity(optuna.logging.INFO)

@@ -15,12 +15,14 @@ class ExperimentRunner:
         data: pl.DataFrame,
         feature_cols: list[str],
         target_col: str,
+        seed: int | None = None,
         **kwargs
     ):
-        self.data_splitter = DataSplitter(data, feature_cols, target_col, **kwargs)
-        self.cv = GroupKFold(n_splits=3, shuffle=True)
+        self.data_splitter = DataSplitter(data, feature_cols, target_col, seed=seed, **kwargs)
+        self.cv = GroupKFold(n_splits=3, shuffle=True, random_state=seed)
         self.best_model_info = None
         self.results = []
+        self.seed = seed
 
         self.X_train, self.y_train, self.X_val, self.y_val, self.groups_train = self.data_splitter.get_split_data()
 
@@ -39,8 +41,8 @@ class ExperimentRunner:
                 print(f"Training {framework} with {strategy}...")
 
                 # Find optimal hyperparameters for given setup
-                sampler = optuna.samplers.TPESampler(multivariate=multivariate)
-                objective = OptunaObjective(self.X_train, self.y_train, self.groups_train, self.cv, framework, strategy)
+                sampler = optuna.samplers.TPESampler(multivariate=multivariate, seed=self.seed)
+                objective = OptunaObjective(self.X_train, self.y_train, self.groups_train, self.cv, framework, strategy, seed=self.seed)
                 study = optuna.create_study(direction='maximize', sampler=sampler)
                 study.optimize(objective, n_trials=n_trials, n_jobs=1, gc_after_trial=True)
 
@@ -66,7 +68,7 @@ class ExperimentRunner:
         best_params = info['best_params']
 
         print(f"Training model: {framework} with {strategy}...")
-        pipeline = PipelineBuilder.build(framework, strategy, best_params)
+        pipeline = PipelineBuilder.build(framework, strategy, best_params, seed=self.seed)
         pipeline.fit(self.X_train, self.y_train, **params)
 
         if calibrate:
