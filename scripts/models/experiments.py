@@ -6,6 +6,7 @@ from models.data import DataSplitter
 from models.tuning import OptunaObjective
 from models.pipelines import PipelineBuilder
 from models.calibration import Calibrator
+from models.types import Framework, ImbalanceStrategy
 
 
 class ExperimentRunner:
@@ -17,16 +18,19 @@ class ExperimentRunner:
         **kwargs
     ):
         self.data_splitter = DataSplitter(data, feature_cols, target_col, **kwargs)
-        self.cv = GroupKFold(n_splits=3, shuffle=True, random_state=78)
+        self.cv = GroupKFold(n_splits=3, shuffle=True)
         self.best_model_info = None
         self.results = []
 
         self.X_train, self.y_train, self.X_val, self.y_val, self.groups_train = self.data_splitter.get_split_data()
 
-    def run_all(self):
-        frameworks = ['lightgbm', 'xgboost', 'lightgbm-dart', 'xgboost-dart']
-        strategies = ['RO', 'RU', 'WCE']
-        
+    def run_all(
+        self,
+        frameworks: list[Framework] = ['xgboost-dart', 'lightgbm-dart', 'lightgbm', 'xgboost'],
+        strategies: list[ImbalanceStrategy] = ['RO', 'RU', 'WCE'],
+        n_trials: int = 50,
+        multivariate: bool = False
+    ):
         best_score = 0
         self.results = []
         
@@ -35,9 +39,10 @@ class ExperimentRunner:
                 print(f"Training {framework} with {strategy}...")
 
                 # Find optimal hyperparameters for given setup
+                sampler = optuna.samplers.TPESampler(multivariate=multivariate)
                 objective = OptunaObjective(self.X_train, self.y_train, self.groups_train, self.cv, framework, strategy)
-                study = optuna.create_study(direction='maximize')
-                study.optimize(objective, n_trials=50, n_jobs=1)
+                study = optuna.create_study(direction='maximize', sampler=sampler)
+                study.optimize(objective, n_trials=n_trials, n_jobs=1, gc_after_trial=True)
 
                 info = {
                     'framework': framework,

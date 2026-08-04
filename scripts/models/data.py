@@ -13,15 +13,19 @@ class DataSplitter:
         target_col: str,
         group_col: str = 'game_id',
         train_ids: np.ndarray | None = None,
-        test_ids: np.ndarray | None = None
+        test_ids: np.ndarray | None = None,
+        split_path: str | None = None
     ):
         self.data = data
         self.feature_cols = feature_cols
         self.target_col = target_col
         self.game_ids = data.select(group_col).unique().to_numpy().flatten()
 
-        self.train_ids = train_ids
-        self.test_ids = test_ids
+        if split_path is not None:
+            self.load_split(split_path)
+        else:
+            self.train_ids = train_ids
+            self.test_ids = test_ids
 
     def split(self, test_size: float = 0.3, random_state: int = 50) -> None:
         """
@@ -57,7 +61,7 @@ class DataSplitter:
         """
         Load the split data from a file.
         """
-        data = np.load(path)
+        data = np.load(path, allow_pickle=True)
         self.train_ids = data['train_ids']
         self.test_ids = data['test_ids']
 

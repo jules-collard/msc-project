@@ -14,10 +14,10 @@ __marimo__/
 .DS_Store
 
 # Data
-data/
-mappings/
-output/
-models/
+/data/
+/mappings/
+/output/
+/models/
 
 # Misc
 scripts/save_post_shot_data.py
