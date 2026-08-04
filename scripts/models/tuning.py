@@ -33,6 +33,7 @@ class OptunaObjective:
             groups=self.groups, 
             cv=self.cv, 
             scoring={'pr_auc': pr_auc_scorer, 'roc_auc': roc_auc_scorer},
+            error_score='raise'
         )
 
         mean_pr_auc = cv_results['test_pr_auc'].mean()
@@ -54,38 +55,39 @@ class OptunaObjective:
         else:
             raise ValueError(f"Unsupported framework: {framework}")
 
-    def _get_xgb_param_space(self, trial: Trial) -> dict:
+    def _get_xgb_param_space(self, trial: Trial, max_estimators=1000, min_lr=1e-3) -> dict:
         params = {
             # Core Structure
-            'n_estimators': trial.suggest_int('n_estimators', 100, 1000),
-            'learning_rate': trial.suggest_float('learning_rate', 1e-3, 0.3, log=True),
+            'n_estimators': trial.suggest_int('n_estimators', 100, max_estimators),
+            'learning_rate': trial.suggest_float('learning_rate', min_lr, 0.3, log=True),
             'max_depth': trial.suggest_int('max_depth', 3, 9),
             
             # Regularization & Overfitting Prevention
             'min_child_weight': trial.suggest_float('min_child_weight', 0.1, 10.0, log=True),
             'gamma': trial.suggest_float('gamma', 1e-4, 1.0, log=True), # Min. gain to split
-            'lambda': trial.suggest_float('lambda', 1e-4, 10.0, log=True), # L2 regularisation
-            'alpha': trial.suggest_float('alpha', 1e-4, 10.0, log=True), # L1 regularisation
+            'reg_lambda': trial.suggest_float('reg_lambda', 1e-4, 10.0, log=True), # L2 regularisation
+            'reg_alpha': trial.suggest_float('reg_alpha', 1e-4, 10.0, log=True), # L1 regularisation
             
             # Stochastic Elements
             'subsample': trial.suggest_float('subsample', 0.6, 1.0),
             'colsample_bytree': trial.suggest_float('colsample_bytree', 0.6, 1.0),
 
             'verbosity': 0,
+            'n_jobs': 6
         }
         return params
 
     def _get_xgb_dart_param_space(self, trial: Trial) -> dict:
-        params = self._get_xgb_param_space(trial)
-        params['booster'] = 'dart'
+        params = self._get_xgb_param_space(trial, max_estimators=500, min_lr=3e-3)
         params['rate_drop'] = trial.suggest_float('rate_drop', 0.05, 0.3)
+        params['skip_drop'] = trial.suggest_float('skip_drop', 0.2, 0.8)
         return params
 
-    def _get_lgb_param_space(self, trial):
+    def _get_lgb_param_space(self, trial, min_lr=1e-3):
         params = {
             # Core Structure
             'n_estimators': trial.suggest_int('n_estimators', 100, 1000),
-            'learning_rate': trial.suggest_float('learning_rate', 1e-3, 0.3, log=True),
+            'learning_rate': trial.suggest_float('learning_rate', min_lr, 0.3, log=True),
             'num_leaves': trial.suggest_int('num_leaves', 20, 500),
             'max_depth': trial.suggest_int('max_depth', 3, 12),
             
@@ -105,9 +107,7 @@ class OptunaObjective:
         return params
 
     def _get_lgb_dart_param_space(self, trial: Trial) -> dict:
-        params: dict = self._get_lgb_param_space(trial)
+        params: dict = self._get_lgb_param_space(trial, min_lr=3e-3)
         params['boosting'] = 'dart'
         params['drop_rate'] = trial.suggest_float('drop_rate', 0.05, 0.3)
-        # Higher min. learning rate as GBDT is used for first 1/learning_rate iterations
-        params['learning_rate'] = trial.suggest_float('learning_rate', 3e-3, 0.3, log=True)
         return params
