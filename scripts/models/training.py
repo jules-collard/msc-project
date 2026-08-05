@@ -1,5 +1,6 @@
 import numpy as np
 import xgboost as xgb
+import joblib
 
 from models.types import Framework, ImbalanceStrategy
 from models.calibration import Calibrator
@@ -49,13 +50,27 @@ class ModelTrainer:
             raise NotImplementedError("Strategy not implemented")
 
         clf = xgb.XGBClassifier(objective='binary:logistic', random_state=self.seed, **self.params)
+        print(f"Training {self.framework} model with strategy {self.strategy} and parameters: {self.params}")
         clf.fit(self.X_train, self.y_train)
 
         if self.feature_names is not None:
             clf.get_booster().feature_names = self.feature_names
         if self.calibrate:
+            print("Calibrating model...")
             clf = Calibrator.calibrate(clf, self.X_val, self.y_val)
 
         self.clf = clf
 
         return clf
+
+    def save(self, path):
+        if self.clf is None:
+            raise ValueError("No model to save")
+
+        joblib.dump(self.clf, path)
+        print("Model saved to ", path)
+
+    @staticmethod
+    def load(path):
+        return joblib.load(path)
+        
