@@ -61,24 +61,3 @@ class ExperimentRunner:
                 self.results.append(info)
                     
         return self.results
-
-    def run_model(self, info: dict, calibrate: bool = True, **params):
-        framework = info['framework']
-        strategy = info['strategy']
-        best_params = info['best_params']
-
-        print(f"Training model: {framework} with {strategy}...")
-        pipeline = PipelineBuilder.build(framework, strategy, best_params, seed=self.seed)
-        pipeline.fit(self.X_train, self.y_train, **params)
-
-        if calibrate:
-            calibrated_pipeline = Calibrator.calibrate(pipeline, self.X_val, self.y_val, method='isotonic')
-            return calibrated_pipeline
-        else:
-            return pipeline
-
-    def run_best(self):
-        if not self.best_model_info:
-            raise ValueError("No best model info available. Run run_all() first.")
-
-        return self.run_model(self.best_model_info, calibrate=True)
