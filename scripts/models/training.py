@@ -3,7 +3,7 @@ import xgboost as xgb
 import joblib
 
 from models.types import Framework, ImbalanceStrategy
-from models.calibration import Calibrator
+from models.calibration import Calibrator, LossCalibratedClassifier
 
 class ModelTrainer:
 
@@ -15,9 +15,9 @@ class ModelTrainer:
         strategy: ImbalanceStrategy,
         X_val: np.ndarray | None = None,
         y_val: np.ndarray | None = None,
+        loss_correct: bool = False,
         calibrate: bool = True,
         seed: int | None = None,
-        feature_names: list[str] | None = None,
         **params
     ):
         self.X_train = X_train
@@ -26,9 +26,9 @@ class ModelTrainer:
         self.y_val = y_val
         self.framework = framework
         self.strategy = strategy
+        self.loss_correct = loss_correct
         self.calibrate = calibrate
         self.seed = seed
-        self.feature_names = feature_names
         self.params = params
 
         self.clf = None
@@ -50,11 +50,19 @@ class ModelTrainer:
             raise NotImplementedError("Strategy not implemented")
 
         clf = xgb.XGBClassifier(objective='binary:logistic', random_state=self.seed, **self.params)
-        print(f"Training {self.framework} model with strategy {self.strategy} and parameters: {self.params}")
+
+        if self.loss_correct:
+            clf = LossCalibratedClassifier(clf)
+        
+        print(f"Training {self.framework} model with strategy {self.strategy}.")
+        print(f"Parameters: {self.params}")
+        if self.loss_correct:
+            print("Loss correction enabled.")
+        if self.calibrate:
+            print("Calibration enabled.")
+
         clf.fit(self.X_train, self.y_train)
 
-        if self.feature_names is not None:
-            clf.get_booster().feature_names = self.feature_names
         if self.calibrate:
             print("Calibrating model...")
             clf = Calibrator.calibrate(clf, self.X_val, self.y_val)

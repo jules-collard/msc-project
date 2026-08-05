@@ -61,6 +61,12 @@ def main():
     )
 
     parser.add_argument(
+        "--loss-correct",
+        action='store_true',
+        help="Enable loss correction calibration for the model."
+    )
+
+    parser.add_argument(
         "--calibrate",
         action='store_true',
         help="Enable calibration of the model."
@@ -75,7 +81,7 @@ def main():
     with open(args.param_file, 'r') as f:
         params = json.load(f)
 
-    trainer = ModelTrainer(X_train, y_train, args.framework, args.strategy, X_val, y_val, calibrate=args.calibrate, **params)
+    trainer = ModelTrainer(X_train, y_train, args.framework, args.strategy, X_val, y_val, calibrate=args.calibrate, loss_correct=args.loss_correct, **params)
     trainer.train()
     trainer.save(args.output_file)
 
