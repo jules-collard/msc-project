@@ -6,7 +6,7 @@ import optuna
 from scripts.data_readers import batch_read_shot_data
 from scripts.models.experiments import ExperimentRunner
 from scripts.models.data import prepare_data
-from scripts.models.features import pre_shot_features, pre_shot_features_pruned
+from scripts.models.features import pre_shot_features, pre_shot_features_pruned, post_shot_features_full
 
 
 def main():
@@ -26,7 +26,7 @@ def main():
     parser.add_argument(
         "feature_set",
         type=str,
-        choices=["pre_shot", "pre_shot_pruned"],
+        choices=["pre_shot", "pre_shot_pruned", "post_shot_full"],
         help="Feature set to use for training."
     )
 
@@ -93,6 +93,8 @@ def main():
             features = pre_shot_features
         case "pre_shot_pruned":
             features = pre_shot_features_pruned
+        case "post_shot_full":
+            features = post_shot_features_full
         case _:
             raise ValueError(f"Unknown feature set: {args.feature_set}")
 
