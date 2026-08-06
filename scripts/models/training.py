@@ -16,7 +16,7 @@ class ModelTrainer:
         X_val: np.ndarray | None = None,
         y_val: np.ndarray | None = None,
         loss_correct: bool = False,
-        calibrate: bool = True,
+        calibrate: bool = False,
         seed: int | None = None,
         **params
     ):
