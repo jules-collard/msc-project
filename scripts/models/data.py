@@ -47,8 +47,8 @@ class DataSplitter:
         train_data = self.data.filter(pl.col('game_id').is_in(self.train_ids))
         test_data = self.data.filter(pl.col('game_id').is_in(self.test_ids))
 
-        X_train, y_train = self._extract_features_and_target(train_data)
-        X_test, y_test = self._extract_features_and_target(test_data)
+        X_train, y_train = self.extract_features_and_target(train_data, self.feature_cols, self.target_col)
+        X_test, y_test = self.extract_features_and_target(test_data, self.feature_cols, self.target_col)
 
         groups = train_data.select('game_id').to_numpy().flatten()
 
@@ -68,13 +68,14 @@ class DataSplitter:
         Save the current split of game IDs to a file.
         """
         np.savez(path, train_ids=self.train_ids, test_ids=self.test_ids)
-    
-    def _extract_features_and_target(self, data: pl.DataFrame) -> tuple[np.ndarray, np.ndarray]:
+
+    @staticmethod
+    def extract_features_and_target(data: pl.DataFrame, feature_cols: list[str], target_col: str) -> tuple[np.ndarray, np.ndarray]:
         """
         Extract features and target from the given DataFrame.
         """
-        X = data.select(self.feature_cols).to_numpy()
-        y = data.select(self.target_col).to_numpy().flatten()
+        X = data.select(feature_cols).to_numpy()
+        y = data.select(target_col).to_numpy().flatten()
         return X, y
 
 
