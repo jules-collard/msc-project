@@ -4,8 +4,6 @@ from sklearn.model_selection import GroupKFold
 
 from models.data import DataSplitter
 from models.tuning import OptunaObjective
-from models.pipelines import PipelineBuilder
-from models.calibration import Calibrator
 from models.types import Framework, ImbalanceStrategy
 
 
@@ -40,9 +38,14 @@ class ExperimentRunner:
             for strategy in strategies:
                 print(f"Training {framework} with {strategy}...")
 
+                if strategy in ['RO', 'RU'] or framework in ['lightgbm', 'lightgbm-dart']: # Imbalanced-learn does not support polars dataframes
+                    X_train_ = self.X_train.with_columns(pl.selectors.by_dtype(pl.Boolean).cast(pl.Int16)).to_pandas()
+                else:
+                    X_train_ = self.X_train
+
                 # Find optimal hyperparameters for given setup
                 sampler = optuna.samplers.TPESampler(multivariate=multivariate, seed=self.seed)
-                objective = OptunaObjective(self.X_train, self.y_train, self.groups_train, self.cv, framework, strategy, seed=self.seed)
+                objective = OptunaObjective(X_train_, self.y_train, self.groups_train, self.cv, framework, strategy, seed=self.seed)
                 study = optuna.create_study(direction='maximize', sampler=sampler)
                 study.optimize(objective, n_trials=n_trials, n_jobs=1, gc_after_trial=True)
 

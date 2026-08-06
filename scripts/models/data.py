@@ -3,6 +3,8 @@ from polars import col as c
 import numpy as np
 from sklearn.model_selection import train_test_split
 
+from models.types import ShotType, Handedness
+
 
 class DataSplitter:
 
@@ -36,7 +38,7 @@ class DataSplitter:
         self.train_ids = train_ids
         self.test_ids = test_ids
 
-    def get_split_data(self) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    def get_split_data(self) -> tuple[pl.DataFrame, np.ndarray, pl.DataFrame, np.ndarray, np.ndarray]:
         """
         Get the training and test data based on the previously split game IDs.
         """
@@ -70,11 +72,11 @@ class DataSplitter:
         np.savez(path, train_ids=self.train_ids, test_ids=self.test_ids)
 
     @staticmethod
-    def extract_features_and_target(data: pl.DataFrame, feature_cols: list[str], target_col: str) -> tuple[np.ndarray, np.ndarray]:
+    def extract_features_and_target(data: pl.DataFrame, feature_cols: list[str], target_col: str) -> tuple[pl.DataFrame, np.ndarray]:
         """
         Extract features and target from the given DataFrame.
         """
-        X = data.select(feature_cols).to_numpy()
+        X = data.select(feature_cols)
         y = data.select(target_col).to_numpy().flatten()
         return X, y
 
@@ -85,7 +87,8 @@ def prepare_data(data: pl.DataFrame | pl.LazyFrame) -> pl.DataFrame | pl.LazyFra
         .with_columns(
             c('shot_x').fill_null(c('x_adj_coord')),
             c('shot_y').fill_null(c('y_adj_coord')),
-            c('shot_type').cast(pl.Int16) # Cast enum to integer encoding
+            c('shot_type').cast(ShotType),
+            c('goalie_handedness', 'shooter_handedness').cast(Handedness),
         ).filter(
             c('opposing_team_goalie_on_ice_ref').is_not_null(), # No empty nets
             c('shot_x') >= 0,

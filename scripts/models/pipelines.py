@@ -28,7 +28,7 @@ class PipelineBuilder:
         if framework == 'lightgbm' or framework == 'lightgbm-dart':
             clf = lgb.LGBMClassifier(objective='binary', random_state=seed, **params)
         elif framework == 'xgboost' or framework == 'xgboost-dart':
-            clf = xgb.XGBClassifier(objective='binary:logistic', random_state=seed, **params)
+            clf = xgb.XGBClassifier(objective='binary:logistic', enable_categorical=True, random_state=seed, **params)
             
         steps.append(('classifier', clf))
         

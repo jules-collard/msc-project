@@ -47,7 +47,7 @@ def main():
     parser.add_argument(
         "--frameworks",
         nargs='+',
-        default=['xgboost-dart', 'lightgbm-dart', 'lightgbm', 'xgboost'],
+        default=['lightgbm-dart', 'xgboost-dart', 'lightgbm', 'xgboost'],
         help="List of frameworks to test."
     )
 

@@ -40,7 +40,7 @@ class ModelTrainer:
         else:
             raise NotImplementedError("Strategy not implemented")
 
-        clf = xgb.XGBClassifier(objective='binary:logistic', random_state=self.seed, **self.params)
+        clf = xgb.XGBClassifier(objective='binary:logistic', enable_categorical=True, random_state=self.seed, **self.params)
 
         if self.loss_correct:
             clf = LossCalibratedClassifier(clf)

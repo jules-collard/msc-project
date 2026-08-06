@@ -1,4 +1,5 @@
 import numpy as np
+import polars as pl
 from sklearn.metrics import average_precision_score, make_scorer, roc_auc_score
 from sklearn.model_selection import cross_validate, GroupKFold
 from optuna.trial import Trial
@@ -9,7 +10,7 @@ from models.pipelines import PipelineBuilder
 
 class OptunaObjective:
     def __init__(self, X, y, groups, cv_splitter, framework, imbalance_strategy, seed: int | None = None):
-        self.X: np.ndarray = X
+        self.X: pl.DataFrame = X
         self.y: np.ndarray = y
         self.groups: np.ndarray = groups
         self.cv: GroupKFold = cv_splitter
