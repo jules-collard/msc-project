@@ -6,7 +6,7 @@ import optuna
 from scripts.data_readers import batch_read_shot_data
 from scripts.models.experiments import ExperimentRunner
 from scripts.models.data import prepare_data
-from scripts.models.features import pre_shot_features
+from scripts.models.features import pre_shot_features, pre_shot_features_pruned
 
 
 def main():
@@ -21,6 +21,13 @@ def main():
         "output_file",
         type=str,
         help="Output file to save experiment results."
+    )
+
+    parser.add_argument(
+        "feature_set",
+        type=str,
+        choices=["pre_shot", "pre_shot_pruned"],
+        help="Feature set to use for training."
     )
 
     parser.add_argument(
@@ -48,6 +55,7 @@ def main():
         "--frameworks",
         nargs='+',
         default=['lightgbm-dart', 'xgboost-dart', 'lightgbm', 'xgboost'],
+        choices=['lightgbm-dart', 'xgboost-dart', 'lightgbm', 'xgboost'],
         help="List of frameworks to test."
     )
 
@@ -55,6 +63,7 @@ def main():
         "--strategies",
         nargs='+',
         default=['RO', 'RU', 'WCE'],
+        choices=['RO', 'RU', 'WCE'],
         help="List of imbalance strategies to test."
     )
 
@@ -79,8 +88,16 @@ def main():
 
     args = parser.parse_args()
 
+    match args.feature_set:
+        case "pre_shot":
+            features = pre_shot_features
+        case "pre_shot_pruned":
+            features = pre_shot_features_pruned
+        case _:
+            raise ValueError(f"Unknown feature set: {args.feature_set}")
+
     data = batch_read_shot_data(args.data_pattern).pipe(prepare_data)
-    experiment = ExperimentRunner(data.collect(), pre_shot_features, "goal", split_path=args.split_path, seed=args.seed)
+    experiment = ExperimentRunner(data.collect(), features, "goal", split_path=args.split_path, seed=args.seed)
 
     if args.info_log:
         optuna.logging.set_verbosity(optuna.logging.INFO)
