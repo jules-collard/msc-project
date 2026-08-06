@@ -3,7 +3,7 @@ import xgboost as xgb
 import joblib
 
 from models.types import Framework, ImbalanceStrategy
-from models.calibration import Calibrator, LossCalibratedClassifier
+from models.calibration import LossCalibratedClassifier
 
 class ModelTrainer:
 
@@ -13,28 +13,19 @@ class ModelTrainer:
         y_train: np.ndarray,
         framework: Framework,
         strategy: ImbalanceStrategy,
-        X_val: np.ndarray | None = None,
-        y_val: np.ndarray | None = None,
-        loss_correct: bool = False,
-        calibrate: bool = False,
+        loss_correct: bool = True,
         seed: int | None = None,
         **params
     ):
         self.X_train = X_train
         self.y_train = y_train
-        self.X_val = X_val
-        self.y_val = y_val
         self.framework = framework
         self.strategy = strategy
         self.loss_correct = loss_correct
-        self.calibrate = calibrate
         self.seed = seed
         self.params = params
 
         self.clf = None
-
-        if self.calibrate and (X_val is None or y_val is None):
-            raise ValueError("Validation data is required when calibration is enabled")
 
     def train(self):
         if self.framework == 'xgboost':
@@ -53,21 +44,12 @@ class ModelTrainer:
 
         if self.loss_correct:
             clf = LossCalibratedClassifier(clf)
+            print("Loss correction enabled.")
         
         print(f"Training {self.framework} model with strategy {self.strategy}.")
-        print(f"Parameters: {self.params}")
-        if self.loss_correct:
-            print("Loss correction enabled.")
-        if self.calibrate:
-            print("Calibration enabled.")
+        print(f"Parameters: {self.params}")            
 
-        clf.fit(self.X_train, self.y_train)
-
-        if self.calibrate:
-            print("Calibrating model...")
-            clf = Calibrator.calibrate(clf, self.X_val, self.y_val)
-
-        self.clf = clf
+        self.clf = clf.fit(self.X_train, self.y_train)
 
         return clf
 
