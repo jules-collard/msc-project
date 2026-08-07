@@ -10,8 +10,8 @@ from scripts.models.training import ModelTrainer
 def main():
 
     parser = argparse.ArgumentParser(
-        prog="model_experiments",
-        description="Run model experiments with hyperparameter tuning using Optuna.",
+        prog="train_model",
+        description="Train a model using the specified framework and strategy.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
@@ -93,7 +93,7 @@ def main():
     if args.split_path is not None:
         print(f"Using split file: {args.split_path}")
         splitter = DataSplitter(data, features, "goal", split_path=args.split_path, seed=args.seed)
-        X_train, y_train, _X_test, _y_test, _groups = splitter.get_split_data()
+        X_train, y_train, _X_val, _y_val, _groups = splitter.get_split_data()
     else:
         X_train, y_train = DataSplitter.extract_features_and_target(data, features, "goal")
 
