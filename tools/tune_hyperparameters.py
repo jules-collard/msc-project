@@ -5,7 +5,7 @@ import optuna
 
 from scripts.data_readers import batch_read_shot_data
 from scripts.models.experiments import ExperimentRunner
-from scripts.models.data import prepare_data
+from scripts.models.data import prepare_data, post_shot_filter
 from scripts.models.features import pre_shot_features, pre_shot_features_pruned, post_shot_features_full
 
 
@@ -88,6 +88,8 @@ def main():
 
     args = parser.parse_args()
 
+    data = batch_read_shot_data(args.data_pattern).pipe(prepare_data)
+
     match args.feature_set:
         case "pre_shot":
             features = pre_shot_features
@@ -95,10 +97,10 @@ def main():
             features = pre_shot_features_pruned
         case "post_shot_full":
             features = post_shot_features_full
+            data = data.pipe(post_shot_filter)
         case _:
             raise ValueError(f"Unknown feature set: {args.feature_set}")
-
-    data = batch_read_shot_data(args.data_pattern).pipe(prepare_data)
+    
     experiment = ExperimentRunner(data.collect(), features, "goal", split_path=args.split_path, seed=args.seed)
 
     if args.info_log:

@@ -2,8 +2,8 @@ import argparse
 import json
 
 from scripts.data_readers import batch_read_shot_data
-from scripts.models.data import DataSplitter, prepare_data
-from scripts.models.features import pre_shot_features, pre_shot_features_pruned
+from scripts.models.data import DataSplitter, prepare_data, post_shot_filter
+from scripts.models.features import pre_shot_features, pre_shot_features_pruned, post_shot_features_full
 from scripts.models.training import ModelTrainer
 
 
@@ -84,6 +84,9 @@ def main():
             features = pre_shot_features
         case "pre_shot_pruned":
             features = pre_shot_features_pruned
+        case "post_shot_full":
+            features = post_shot_features_full
+            data = data.pipe(post_shot_filter)
         case _:
             raise ValueError(f"Unknown feature set: {args.feature_set}")
 
