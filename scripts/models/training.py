@@ -1,15 +1,18 @@
 import numpy as np
+import polars as pl
 import xgboost as xgb
+import lightgbm as lgb
 import joblib
 
 from models.types import Framework, ImbalanceStrategy
 from models.calibration import LossCalibratedClassifier
+from models.data import polars_to_pandas
 
 class ModelTrainer:
 
     def __init__(
         self,
-        X_train: np.ndarray,
+        X_train: pl.DataFrame,
         y_train: np.ndarray,
         framework: Framework,
         strategy: ImbalanceStrategy,
@@ -30,6 +33,8 @@ class ModelTrainer:
     def train(self):
         if self.framework == 'xgboost':
             return self.train_xgboost()
+        elif self.framework == 'lightgbm':
+            return self.train_lightgbm()
         else:
             raise NotImplementedError("Framework not implemented")
 
@@ -50,6 +55,27 @@ class ModelTrainer:
         print(f"Parameters: {self.params}")            
 
         self.clf = clf.fit(self.X_train, self.y_train)
+
+        return clf
+
+    def train_lightgbm(self):
+        if self.strategy == 'WCE':
+            wce_weight = self.params.pop('wce_weight')
+            self.params['scale_pos_weight'] = wce_weight
+        else:
+            raise NotImplementedError("Strategy not implemented")
+
+        clf = lgb.LGBMClassifier(objective='binary', random_state=self.seed, **self.params)
+
+        if self.loss_correct:
+            clf = LossCalibratedClassifier(clf)
+            print("Loss correction enabled.")
+        
+        print(f"Training {self.framework} model with strategy {self.strategy}.")
+        print(f"Parameters: {self.params}")            
+
+        X_train_ = polars_to_pandas(self.X_train)
+        self.clf = clf.fit(X_train_, self.y_train)
 
         return clf
 

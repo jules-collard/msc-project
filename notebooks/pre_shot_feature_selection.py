@@ -15,7 +15,7 @@ def _():
 
     from data_readers import batch_read_shot_data
     from models.features import pre_shot_features, pre_shot_features_print
-    from models.data import prepare_data, DataSplitter
+    from models.data import prepare_data, DataSplitter, polars_to_pandas
     from models.training import ModelTrainer
 
     return (
@@ -23,6 +23,7 @@ def _():
         ModelTrainer,
         batch_read_shot_data,
         json,
+        polars_to_pandas,
         pre_shot_features,
         pre_shot_features_print,
         prepare_data,
@@ -42,21 +43,21 @@ def _(DataSplitter, batch_read_shot_data, pre_shot_features, prepare_data):
 
 @app.cell
 def _(json):
-    with open("models/pre_shot/pre_shot_xgboost_params.json", "r") as f:
+    with open("models/pre_shot/pre_shot_lightgbm_params.json", "r") as f:
         params = json.load(f)
     return (params,)
 
 
 @app.cell
 def _(ModelTrainer, X_train, params, y_train):
-    clf = ModelTrainer(X_train, y_train, 'xgboost', 'WCE', loss_correct=True, seed=89, **params).train()
+    clf = ModelTrainer(X_train, y_train, 'lightgbm', 'WCE', loss_correct=True, seed=89, **params).train()
     return (clf,)
 
 
 @app.cell
-def _(X_test, clf, pre_shot_features_print, shap):
+def _(X_test, clf, polars_to_pandas, pre_shot_features_print, shap):
     explainer = shap.TreeExplainer(clf.estimator_, feature_names=pre_shot_features_print)
-    shap_values = explainer(X_test)
+    shap_values = explainer(polars_to_pandas(X_test))
     return (shap_values,)
 
 

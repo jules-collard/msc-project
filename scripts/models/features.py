@@ -52,11 +52,10 @@ pre_shot_features_pruned = [f for f in pre_shot_features if f not in ["num_press
 
 post_shot_features_full = pre_shot_features_pruned + [
     "shot_speed",
-    "goalline_y",
+    "goalline_y_norm",
     "goalline_z",
     "on_goal",
     "dist_to_post",
     "dist_to_corner",
-    "goalie_handedness",
-    
+    "dist_to_center"
 ]

@@ -1,4 +1,5 @@
 import polars as pl
+import pandas as pd
 from polars import col as c
 import numpy as np
 from sklearn.model_selection import train_test_split
@@ -80,6 +81,8 @@ class DataSplitter:
         y = data.select(target_col).to_numpy().flatten()
         return X, y
 
+def polars_to_pandas(df: pl.DataFrame) -> pd.DataFrame:
+    return df.with_columns(pl.selectors.by_dtype(pl.Boolean).cast(pl.Int16)).to_pandas()
 
 def prepare_data(data: pl.DataFrame | pl.LazyFrame) -> pl.DataFrame | pl.LazyFrame:
     return (
@@ -89,8 +92,25 @@ def prepare_data(data: pl.DataFrame | pl.LazyFrame) -> pl.DataFrame | pl.LazyFra
             c('shot_y').fill_null(c('y_adj_coord')),
             c('shot_type').cast(ShotType),
             c('goalie_handedness', 'shooter_handedness').cast(Handedness),
+            pl.when(
+                c('goalie_handedness') == 'R'
+            ).then(
+                -c('goalline_y')
+            ).otherwise(c('goalline_y'))
+            .alias('goalline_y_norm')
         ).filter(
             c('opposing_team_goalie_on_ice_ref').is_not_null(), # No empty nets
             c('shot_x') >= 0,
+        )
+    )
+
+def post_shot_filter(data: pl.DataFrame | pl.LazyFrame) -> pl.DataFrame | pl.LazyFrame:
+    return (
+        data
+        .filter(
+            c('shot_speed').is_not_null(),
+            c('goalline_y_norm').is_not_null(),
+            c('goalline_z').is_not_null(),
+            c('shot_x') < 89 # No shots from behind the net
         )
     )
