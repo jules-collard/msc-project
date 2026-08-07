@@ -6,6 +6,7 @@ app = marimo.App(width="medium")
 
 @app.cell
 def _():
+    import json
     import polars as pl
     from polars import col as c
     from great_tables import GT, loc, style
@@ -16,7 +17,7 @@ def _():
 @app.cell
 def _(pl):
     results = (
-        pl.read_parquet("models/experiment_results_seed_48.parquet")
+        pl.read_parquet("models/pre_shot/experiment_2_results_cat_s203.parquet")
         .with_columns(
             pl.col('framework')
             .str.replace('xgboost', 'XGBoost', literal=True)
@@ -30,18 +31,6 @@ def _(pl):
         ).sort(pl.col('framework', 'strategy'))
     )
     return (results,)
-
-
-@app.cell
-def _(pl):
-    optimised_results = pl.read_parquet("models/xgboost_wce_mv_results.parquet")
-    return (optimised_results,)
-
-
-@app.cell
-def _(optimised_results):
-    optimised_results
-    return
 
 
 @app.cell
