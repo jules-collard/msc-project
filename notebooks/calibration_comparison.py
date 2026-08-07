@@ -12,14 +12,14 @@ with app.setup:
     from sklearn.model_selection import train_test_split
     from sklearn.frozen import FrozenEstimator
     from sklearn.calibration import calibration_curve
-    import xgboost as xgb
+    import lightgbm as lgb
     import plotnine as p9
     from plotnine import ggplot, aes, geom_line, geom_point, labs
     from betacal import BetaCalibration
     from calibra.errors import classwise_ece
 
     from data_readers import batch_read_shot_data
-    from models.data import DataSplitter, prepare_data
+    from models.data import DataSplitter, prepare_data, polars_to_pandas
     from models.features import pre_shot_features
     from models.training import ModelTrainer
     from models.calibration import LossCalibratedClassifier, Calibrator
@@ -42,12 +42,16 @@ def _(data, test_val_ids, train_ids):
     X_train, y_train = DataSplitter.extract_features_and_target(data.filter(c('game_id').is_in(train_ids)), pre_shot_features, "goal")
     X_val, y_val = DataSplitter.extract_features_and_target(data.filter(c('game_id').is_in(val_ids)), pre_shot_features, "goal")
     X_test, y_test = DataSplitter.extract_features_and_target(data.filter(c('game_id').is_in(test_ids)), pre_shot_features, "goal")
+
+    X_train = polars_to_pandas(X_train)
+    X_val = polars_to_pandas(X_val)
+    X_test = polars_to_pandas(X_test)
     return X_test, X_train, X_val, y_test, y_train, y_val
 
 
 @app.cell
 def _():
-    with open("models/pre_shot/pre_shot_xgboost_params.json", "r") as f:
+    with open("models/pre_shot/pre_shot_lightgbm_params.json", "r") as f:
         params = json.load(f)
 
     wce_weight = params.pop('wce_weight')
@@ -57,7 +61,7 @@ def _():
 
 @app.cell
 def _(X_test, X_train, X_val, params, y_train, y_val):
-    base_clf = xgb.XGBClassifier(objective='binary:logistic', random_state=78, **params)
+    base_clf = lgb.LGBMClassifier(objective='binary', random_state=78, **params)
     base_clf.fit(X_train, y_train)
 
     loss_calibrated_clf = LossCalibratedClassifier(FrozenEstimator(base_clf))
