@@ -33,8 +33,8 @@ def _():
 
 
 @app.cell
-def _(DataSplitter, batch_read_shot_data, cs, prepare_data):
-    data = batch_read_shot_data("/output/shot_data/20242025/*.parquet").pipe(prepare_data)
+def _(DataSplitter, batch_read_shot_data, cs):
+    data = batch_read_shot_data("/output/shot_data/20242025/*.parquet")
 
     splitter = DataSplitter(data.collect(), cs.all().exclude('goal'), 'goal', split_path="models/train_test_20242025.npz")
     return (splitter,)
@@ -90,9 +90,9 @@ def _(aes, c, data_train, geom_hline, geom_vline, ggplot, labs, p9, theme_bw):
 
 
 @app.cell
-def _(c, cs, data_train, pl):
+def _(c, cs, data_train, pl, prepare_data):
     (
-        data_train
+        data_train.pipe(prepare_data)
         .select(
             (1 - pl.any_horizontal(c('shot_time', 'shot_x', 'shot_y', 'shot_z').is_null()).mean()).alias('shot_start_detected'),
             (1 - pl.any_horizontal(cs.starts_with('traj').is_null()).mean()).alias('trajectory_detected'),
