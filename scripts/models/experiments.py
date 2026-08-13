@@ -13,6 +13,7 @@ class ExperimentRunner:
         data: pl.DataFrame,
         feature_cols: list[str],
         target_col: str,
+        n_estimators: int,
         seed: int | None = None,
         **kwargs
     ):
@@ -20,6 +21,7 @@ class ExperimentRunner:
         self.cv = GroupKFold(n_splits=3, shuffle=True, random_state=seed)
         self.best_model_info = None
         self.results = []
+        self.n_estimators = n_estimators
         self.seed = seed
 
         self.X_train, self.y_train, self.X_val, self.y_val, self.groups_train = self.data_splitter.get_split_data()
@@ -45,7 +47,7 @@ class ExperimentRunner:
 
                 # Find optimal hyperparameters for given setup
                 sampler = optuna.samplers.TPESampler(multivariate=multivariate, seed=self.seed)
-                objective = OptunaObjective(X_train_, self.y_train, self.groups_train, self.cv, framework, strategy, seed=self.seed)
+                objective = OptunaObjective(X_train_, self.y_train, self.groups_train, self.cv, framework, strategy, n_estimators=self.n_estimators, seed=self.seed)
                 study = optuna.create_study(direction='maximize', sampler=sampler)
                 study.optimize(objective, n_trials=n_trials, n_jobs=1, gc_after_trial=True)
 

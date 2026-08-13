@@ -86,6 +86,13 @@ def main():
         help="Enable info logging."
     )
 
+    parser.add_argument(
+        "--n-estimators",
+        type=int,
+        default=980,
+        help="Number of trees to build"
+    )
+
     args = parser.parse_args()
 
     data = batch_read_shot_data(args.data_pattern).pipe(prepare_data)
@@ -101,7 +108,7 @@ def main():
         case _:
             raise ValueError(f"Unknown feature set: {args.feature_set}")
     
-    experiment = ExperimentRunner(data.collect(), features, "goal", split_path=args.split_path, seed=args.seed)
+    experiment = ExperimentRunner(data.collect(), features, "goal", split_path=args.split_path, n_estimators=args.n_estimators, seed=args.seed)
 
     if args.info_log:
         optuna.logging.set_verbosity(optuna.logging.INFO)
