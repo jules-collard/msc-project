@@ -58,8 +58,8 @@ def _(json):
 
 
 @app.cell
-def _(ModelTrainer, X_train, params, y_train):
-    clf = ModelTrainer(X_train, y_train, 'lightgbm', 'WCE', loss_correct=True, seed=89, **params).train()
+def _(ModelTrainer, X_test, X_train, params, y_test, y_train):
+    clf = ModelTrainer(X_train, y_train, 'lightgbm', 'WCE', loss_correct=True, seed=89, X_val=X_test, y_val=y_test, **params).train()
     return (clf,)
 
 
