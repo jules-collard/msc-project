@@ -17,7 +17,7 @@ def _():
 @app.cell
 def _(pl):
     results = (
-        pl.read_parquet("models/post_shot/experiment_results_cat_s109.parquet")
+        pl.read_parquet("models/pre_shot/lightgbm_wce_opt_6906.parquet")
         .with_columns(
             pl.col('framework')
             .str.replace('xgboost', 'XGBoost', literal=True)
