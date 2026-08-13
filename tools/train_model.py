@@ -93,14 +93,15 @@ def main():
     if args.split_path is not None:
         print(f"Using split file: {args.split_path}")
         splitter = DataSplitter(data, features, "goal", split_path=args.split_path, seed=args.seed)
-        X_train, y_train, _X_val, _y_val, _groups = splitter.get_split_data()
+        X_train, y_train, X_val, y_val, _groups = splitter.get_split_data()
     else:
         X_train, y_train = DataSplitter.extract_features_and_target(data, features, "goal")
+        X_val, y_val = None, None
 
     with open(args.param_file, 'r') as f:
         params = json.load(f)
 
-    trainer = ModelTrainer(X_train, y_train, args.framework, args.strategy, loss_correct=not args.uncalibrated, **params)
+    trainer = ModelTrainer(X_train, y_train, args.framework, args.strategy, loss_correct=not args.uncalibrated, X_val=X_val, y_val=y_val, **params)
     trainer.train()
     trainer.save(args.output_file)
 

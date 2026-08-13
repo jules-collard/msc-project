@@ -18,6 +18,8 @@ class ModelTrainer:
         strategy: ImbalanceStrategy,
         loss_correct: bool = True,
         seed: int | None = None,
+        X_val: pl.DataFrame | None = None,
+        y_val: np.ndarray | None = None,
         **params
     ):
         self.X_train = X_train
@@ -27,10 +29,15 @@ class ModelTrainer:
         self.loss_correct = loss_correct
         self.seed = seed
         self.params = params
+        self.X_val = X_val
+        self.y_val = y_val
 
         self.clf = None
 
     def train(self):
+        if 'n_estimators' not in self.params.keys():
+            self.params['n_estimators'] = 1500  # Default value if not provided (i.e. early stopping)
+
         if self.framework == 'xgboost':
             return self.train_xgboost()
         elif self.framework == 'lightgbm':
@@ -45,7 +52,17 @@ class ModelTrainer:
         else:
             raise NotImplementedError("Strategy not implemented")
 
-        clf = xgb.XGBClassifier(objective='binary:logistic', enable_categorical=True, random_state=self.seed, **self.params)
+        if self.X_val is not None and self.y_val is not None:
+            clf = xgb.XGBClassifier(
+                objective='binary:logistic',
+                enable_categorical=True,
+                random_state=self.seed,
+                eval_metric='aucpr',
+                early_stopping_rounds=50,
+                **self.params
+            )
+        else:
+            clf = xgb.XGBClassifier(objective='binary:logistic', enable_categorical=True, random_state=self.seed, **self.params)
 
         if self.loss_correct:
             clf = LossCalibratedClassifier(clf)
@@ -54,7 +71,10 @@ class ModelTrainer:
         print(f"Training {self.framework} model with strategy {self.strategy}.")
         print(f"Parameters: {self.params}")            
 
-        self.clf = clf.fit(self.X_train, self.y_train)
+        if self.X_val is not None and self.y_val is not None:
+            self.clf = clf.fit(self.X_train, self.y_train, eval_set=[(self.X_val, self.y_val)], verbose=True)
+        else:
+            self.clf = clf.fit(self.X_train, self.y_train)
 
         return clf
 
@@ -65,7 +85,7 @@ class ModelTrainer:
         else:
             raise NotImplementedError("Strategy not implemented")
 
-        clf = lgb.LGBMClassifier(objective='binary', random_state=self.seed, **self.params)
+        clf = lgb.LGBMClassifier(objective='binary', random_state=self.seed, verbosity=-1, **self.params)
 
         if self.loss_correct:
             clf = LossCalibratedClassifier(clf)
@@ -75,7 +95,13 @@ class ModelTrainer:
         print(f"Parameters: {self.params}")            
 
         X_train_ = polars_to_pandas(self.X_train)
-        self.clf = clf.fit(X_train_, self.y_train)
+
+        if self.X_val is not None and self.y_val is not None:
+            X_val_ = polars_to_pandas(self.X_val)
+            early_stopper = lgb.early_stopping(stopping_rounds=50, first_metric_only=True, verbose=True)
+            self.clf = clf.fit(X_train_, self.y_train, eval_set=[(X_val_, self.y_val)], eval_metric= "average_precision", callbacks=[early_stopper])
+        else:
+            self.clf = clf.fit(X_train_, self.y_train)
 
         return clf
 
