@@ -50,7 +50,7 @@ pre_shot_features_print = [
 # Maintain order
 pre_shot_features_pruned = [f for f in pre_shot_features if f not in ["num_pressures_left", "num_pressures_right"]]
 
-post_shot_features_full = pre_shot_features_pruned + [
+post_shot_features = [
     "shot_speed",
     "goalline_y_norm",
     "goalline_z",
@@ -59,3 +59,7 @@ post_shot_features_full = pre_shot_features_pruned + [
     "dist_to_corner",
     "dist_to_center"
 ]
+
+post_shot_features_full = pre_shot_features_pruned + post_shot_features
+
+post_shot_features_minimal = post_shot_features.append('pre_xg')

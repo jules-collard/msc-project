@@ -3,7 +3,7 @@ import json
 
 from scripts.data_readers import batch_read_shot_data
 from scripts.models.data import DataSplitter, prepare_data, post_shot_filter
-from scripts.models.features import pre_shot_features, pre_shot_features_pruned, post_shot_features_full
+from scripts.models.features import pre_shot_features, pre_shot_features_pruned, post_shot_features_full, post_shot_features_minimal
 from scripts.models.training import ModelTrainer
 
 
@@ -32,7 +32,7 @@ def main():
     parser.add_argument(
         "feature_set",
         type=str,
-        choices=["pre_shot", "pre_shot_pruned"],
+        choices=["pre_shot", "pre_shot_pruned", "post_shot_full", "post_shot_minimal"],
         help="Feature set to use for training."
     )
 
@@ -86,6 +86,9 @@ def main():
             features = pre_shot_features_pruned
         case "post_shot_full":
             features = post_shot_features_full
+            data = data.pipe(post_shot_filter)
+        case "post_shot_minimal":
+            features = post_shot_features_minimal
             data = data.pipe(post_shot_filter)
         case _:
             raise ValueError(f"Unknown feature set: {args.feature_set}")

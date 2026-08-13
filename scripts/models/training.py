@@ -101,7 +101,7 @@ class ModelTrainer:
         if self.X_val is not None and self.y_val is not None:
             X_val_ = polars_to_pandas(self.X_val)
             early_stopper = lgb.early_stopping(stopping_rounds=50, first_metric_only=True, verbose=True)
-            self.clf = clf.fit(X_train_, self.y_train, eval_set=[(X_val_, self.y_val)], eval_metric= "average_precision", callbacks=[early_stopper])
+            self.clf = clf.fit(X_train_, self.y_train, eval_X=X_val_, eval_y=self.y_val, eval_metric= "average_precision", callbacks=[early_stopper])
         else:
             self.clf = clf.fit(X_train_, self.y_train)
 
