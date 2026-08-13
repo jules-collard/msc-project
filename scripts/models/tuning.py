@@ -57,11 +57,11 @@ class OptunaObjective:
         else:
             raise ValueError(f"Unsupported framework: {framework}")
 
-    def _get_xgb_param_space(self, trial: Trial, max_estimators=1000, min_lr=1e-3) -> dict:
+    def _get_xgb_param_space(self, trial: Trial, min_lr=1e-3) -> dict:
         params = {
             # Core Structure
-            'n_estimators': trial.suggest_int('n_estimators', 100, max_estimators),
-            'learning_rate': trial.suggest_float('learning_rate', min_lr, 0.3, log=True),
+            'n_estimators': 980,
+            'learning_rate': trial.suggest_float('learning_rate', min_lr, 0.1, log=True),
             'max_depth': trial.suggest_int('max_depth', 3, 9),
             
             # Regularization & Overfitting Prevention
@@ -80,7 +80,7 @@ class OptunaObjective:
         return params
 
     def _get_xgb_dart_param_space(self, trial: Trial) -> dict:
-        params = self._get_xgb_param_space(trial, max_estimators=500, min_lr=3e-3)
+        params = self._get_xgb_param_space(trial, min_lr=3e-3)
         params['rate_drop'] = trial.suggest_float('rate_drop', 0.05, 0.3)
         params['skip_drop'] = trial.suggest_float('skip_drop', 0.2, 0.8)
         return params
@@ -88,8 +88,8 @@ class OptunaObjective:
     def _get_lgb_param_space(self, trial, min_lr=1e-3):
         params = {
             # Core Structure
-            'n_estimators': trial.suggest_int('n_estimators', 100, 1000),
-            'learning_rate': trial.suggest_float('learning_rate', min_lr, 0.3, log=True),
+            'n_estimators': 980,
+            'learning_rate': trial.suggest_float('learning_rate', min_lr, 0.1, log=True),
             'num_leaves': trial.suggest_int('num_leaves', 20, 500),
             'max_depth': trial.suggest_int('max_depth', 3, 12),
             
