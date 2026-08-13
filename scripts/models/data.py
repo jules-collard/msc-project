@@ -47,8 +47,8 @@ class DataSplitter:
             print("No train/test split found. Performing a new split with default parameters.")
             self.split()
 
-        train_data = self.data.filter(pl.col('game_id').is_in(self.train_ids))
-        test_data = self.data.filter(pl.col('game_id').is_in(self.test_ids))
+        train_data = self.data.filter(c('game_id').is_in(self.train_ids))
+        test_data = self.data.filter(c('game_id').is_in(self.test_ids))
 
         X_train, y_train = self.extract_features_and_target(train_data, self.feature_cols, self.target_col)
         X_test, y_test = self.extract_features_and_target(test_data, self.feature_cols, self.target_col)
@@ -71,6 +71,11 @@ class DataSplitter:
         Save the current split of game IDs to a file.
         """
         np.savez(path, train_ids=self.train_ids, test_ids=self.test_ids)
+
+    def get_ids(self) -> tuple[pl.DataFrame, pl.DataFrame]:
+        train_ids_df = self.data.filter(c('game_id').is_in(self.train_ids)).select(c('game_id', 'period', 'shot_id'))
+        test_ids_df = self.data.filter(c('game_id').is_in(self.test_ids)).select(c('game_id', 'period', 'shot_id'))
+        return train_ids_df, test_ids_df
 
     @staticmethod
     def extract_features_and_target(data: pl.DataFrame, feature_cols: list[str], target_col: str) -> tuple[pl.DataFrame, np.ndarray]:
@@ -111,6 +116,7 @@ def post_shot_filter(data: pl.DataFrame | pl.LazyFrame) -> pl.DataFrame | pl.Laz
             c('shot_speed').is_not_null(),
             c('goalline_y_norm').is_not_null(),
             c('goalline_z').is_not_null(),
-            c('shot_x') < 89 # No shots from behind the net
+            c('shot_x') < 89, # No shots from behind the net
+            c('type').str.contains('blocked').not_() # Only unblocked shots for post-shot model
         )
     )
