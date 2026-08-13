@@ -18,6 +18,7 @@ class ModelTrainer:
         strategy: ImbalanceStrategy,
         loss_correct: bool = True,
         seed: int | None = None,
+        n_estimators: int = 1500,
         X_val: pl.DataFrame | None = None,
         y_val: np.ndarray | None = None,
         **params
@@ -28,6 +29,7 @@ class ModelTrainer:
         self.strategy = strategy
         self.loss_correct = loss_correct
         self.seed = seed
+        self.n_estimators = n_estimators
         self.params = params
         self.X_val = X_val
         self.y_val = y_val
@@ -36,7 +38,7 @@ class ModelTrainer:
 
     def train(self):
         if 'n_estimators' not in self.params.keys():
-            self.params['n_estimators'] = 1500  # Default value if not provided (i.e. early stopping)
+            self.params['n_estimators'] = self.n_estimators  # Default value if not provided (i.e. early stopping)
 
         if self.framework == 'xgboost':
             return self.train_xgboost()
