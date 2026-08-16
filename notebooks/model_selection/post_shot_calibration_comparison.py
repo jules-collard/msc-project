@@ -61,7 +61,7 @@ def _():
 
 @app.cell
 def _(X_test, X_train, X_val, params, y_train, y_val):
-    base_clf = lgb.LGBMClassifier(objective='binary', random_state=78, **params)
+    base_clf = lgb.LGBMClassifier(objective='binary', random_state=78, n_estimators=1500, verbosity=-1, **params)
     base_clf.fit(X_train, y_train)
 
     loss_calibrated_clf = LossCalibratedClassifier(FrozenEstimator(base_clf))
