@@ -62,4 +62,4 @@ post_shot_features = [
 
 post_shot_features_full = pre_shot_features_pruned + post_shot_features
 
-post_shot_features_minimal = post_shot_features.append('pre_xg')
+post_shot_features_minimal = post_shot_features + ['pre_shot']

@@ -1,4 +1,5 @@
 import argparse
+import json
 
 import polars as pl
 import optuna
@@ -6,7 +7,7 @@ import optuna
 from scripts.data_readers import batch_read_shot_data
 from scripts.models.experiments import ExperimentRunner
 from scripts.models.data import prepare_data, post_shot_filter
-from scripts.models.features import pre_shot_features, pre_shot_features_pruned, post_shot_features_full
+from scripts.models.features import pre_shot_features, pre_shot_features_pruned, post_shot_features_full, post_shot_features_minimal
 
 
 def main():
@@ -17,17 +18,19 @@ def main():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
-    parser.add_argument(
-        "output_file",
-        type=str,
-        help="Output file to save experiment results."
-    )
 
     parser.add_argument(
         "feature_set",
         type=str,
-        choices=["pre_shot", "pre_shot_pruned", "post_shot_full"],
+        choices=["pre_shot", "pre_shot_pruned", "post_shot_full", "post_shot_minimal"],
         help="Feature set to use for training."
+    )
+
+    parser.add_argument(
+        "--output-file",
+        type=str,
+        default=None,
+        help="Output (parquet) file to save experiment results."
     )
 
     parser.add_argument(
@@ -38,7 +41,14 @@ def main():
     )
 
     parser.add_argument(
-        "--split_path",
+        "--xg-data-pattern",
+        type=str,
+        default=None,
+        help="Pattern/file to read xG predictions - only used when feature_set is 'post_shot_minimal'."
+    )
+
+    parser.add_argument(
+        "--split-path",
         type=str,
         default=None,
         help="Path to the train/test split file."
@@ -68,7 +78,7 @@ def main():
     )
 
     parser.add_argument(
-        "--n_trials",
+        "--n-trials",
         type=int,
         default=50,
         help="Number of trials for hyperparameter tuning."
@@ -81,7 +91,7 @@ def main():
     )
 
     parser.add_argument(
-        "--info_log",
+        "--info-log",
         action='store_true',
         help="Enable info logging."
     )
@@ -93,7 +103,19 @@ def main():
         help="Number of trees to build"
     )
 
+    parser.add_argument(
+        "--params-file",
+        type=str,
+        default=None,
+        help="Path to a JSON file to save best parameters"
+    )
+
     args = parser.parse_args()
+
+    if args.feature_set == "post_shot_minimal" and args.xg_data_pattern is None:
+        parser.error("--post-shot-minimal-config is required when feature_set is post_shot_minimal")
+    elif args.xg_data_pattern is not None and args.feature_set != "post_shot_minimal":
+        parser.error("--post-shot-minimal-config should only be used when feature_set is post_shot_minimal")
 
     data = batch_read_shot_data(args.data_pattern).pipe(prepare_data)
 
@@ -105,6 +127,14 @@ def main():
         case "post_shot_full":
             features = post_shot_features_full
             data = data.pipe(post_shot_filter)
+        case "post_shot_minimal":
+            features = post_shot_features_minimal
+            xg_data = pl.scan_parquet(args.xg_data_pattern)
+            data = (
+                data
+                .pipe(post_shot_filter)
+                .join(xg_data, on=["game_id", "period", "shot_id"], how="left", validate="1:1")
+            )
         case _:
             raise ValueError(f"Unknown feature set: {args.feature_set}")
     
@@ -116,7 +146,15 @@ def main():
         optuna.logging.set_verbosity(optuna.logging.WARNING)
 
     results = experiment.run_all(frameworks=args.frameworks, strategies=args.strategies, n_trials=args.n_trials, multivariate=args.multivariate)
-    pl.from_dicts(results).write_parquet(args.output_file)
+    
+    if args.output_file is not None:
+        pl.from_dicts(results).write_parquet(args.output_file)
+        print(f"Experiment results saved to {args.output_file}")
+
+    if args.params_file and experiment.best_params:
+        with open(args.params_file, 'w') as f:
+            json.dump(experiment.best_params, f, indent=4)
+        print(f"Best parameters saved to {args.params_file}")
 
 if __name__ == "__main__":
     main()

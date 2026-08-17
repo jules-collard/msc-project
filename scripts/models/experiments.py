@@ -19,7 +19,7 @@ class ExperimentRunner:
     ):
         self.data_splitter = DataSplitter(data, feature_cols, target_col, seed=seed, **kwargs)
         self.cv = GroupKFold(n_splits=3, shuffle=True, random_state=seed)
-        self.best_model_info = None
+        self.best_params = None
         self.results = []
         self.n_estimators = n_estimators
         self.seed = seed
@@ -61,7 +61,7 @@ class ExperimentRunner:
 
                 if study.best_value > best_score:
                     best_score = study.best_value
-                    self.best_model_info = info
+                    self.best_params = study.best_params
                 
                 self.results.append(info)
                     
