@@ -34,7 +34,7 @@ def main():
     )
 
     parser.add_argument(
-        "--data_pattern",
+        "--data-pattern",
         type=str,
         default="/output/shot_data/20242025/*.parquet",
         help="Pattern to read data files."
