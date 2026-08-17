@@ -7,7 +7,7 @@ with app.setup:
     import json
 
     import marimo as mo
-    from great_tables import GT
+    from great_tables import GT, loc, style
     from sklearn.calibration import calibration_curve
     from sklearn.metrics import average_precision_score, roc_auc_score
     import polars as pl
@@ -22,6 +22,76 @@ with app.setup:
     from models.features import post_shot_features_full, post_shot_features_minimal
     from models.data import prepare_data, post_shot_filter, DataSplitter, polars_to_pandas
     from models.training import ModelTrainer
+
+
+@app.cell(hide_code=True)
+def _():
+    mo.md(r"""
+    # Model Framework & Imbalance Strategy Comparison
+    """)
+    return
+
+
+@app.cell
+def _():
+    results = (
+        pl.read_parquet("models/post_shot/fixed_trees_experiment_results_s7146.parquet")
+        .with_columns(
+            pl.col('framework')
+            .str.replace('xgboost', 'XGBoost', literal=True)
+            .str.replace('lightgbm', 'LightGBM', literal=True)
+            .str.replace('dart', 'DART', literal=True)
+        ).with_columns(
+            pl.col('strategy')
+            .str.replace('RO', 'Oversampling')
+            .str.replace('RU', 'Undersampling')
+            .str.replace('WCE', 'WCE Loss')
+        ).sort(pl.col('framework', 'strategy'))
+    )
+    return (results,)
+
+
+@app.cell
+def _(results):
+    (
+        GT(results.drop('best_params'))
+        .tab_stub(rowname_col="strategy", groupname_col="framework")
+        .tab_stubhead("Model")
+        .cols_label(
+            best_pr_auc="PR-AUC",
+            best_roc_auc="ROC-AUC"
+        )
+        .fmt_number(columns=["best_pr_auc", "best_roc_auc"], decimals=4)
+        .tab_style(
+            style.text(decorate='underline', style='oblique'),
+            loc.body(
+                columns=c('best_pr_auc'),
+                rows=(c('best_pr_auc') == c('best_pr_auc').max()).over('framework')
+            )
+        ).tab_style(
+            style.text(decorate='underline', style='oblique'),
+            loc.body(
+                columns=c('best_roc_auc'),
+                rows=(c('best_roc_auc') == c('best_roc_auc').max()).over('framework')
+            )
+        ).tab_style(
+            style.text(weight='bolder'),
+            loc.body(
+                columns=c('best_pr_auc'),
+                rows=(c('best_pr_auc') == c('best_pr_auc').max())
+            )
+        ).tab_style(
+            style.text(weight='bold'),
+            [loc.column_labels(), loc.stubhead()]
+        )
+        .tab_options(
+            row_group_as_column=True,
+            table_body_vlines_style="None",
+            table_body_hlines_style="None",
+            stub_row_group_border_style="",
+        )
+    )
+    return
 
 
 @app.cell(hide_code=True)
