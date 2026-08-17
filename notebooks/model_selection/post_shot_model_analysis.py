@@ -53,8 +53,13 @@ def _():
 
 @app.cell
 def _(results):
-    (
+    experiments_table = (
         GT(results.drop('best_params'))
+        .tab_header(
+            title="Post-Shot Model Comparison",
+        ).tab_source_note(
+            "Scores are cross-validated means on training set."
+        )
         .tab_stub(rowname_col="strategy", groupname_col="framework")
         .tab_stubhead("Model")
         .cols_label(
@@ -91,6 +96,9 @@ def _(results):
             stub_row_group_border_style="",
         )
     )
+
+    experiments_table
+    # print(experiments_table.as_latex())
     return
 
 
@@ -104,7 +112,7 @@ def _():
 
 @app.cell
 def _():
-    xg_data = pl.scan_parquet("/output/predictions/pre_shot_model_1308.parquet")
+    xg_data = pl.scan_parquet("/output/predictions/20242025/pre_shot_1308.parquet")
     data = (
         batch_read_shot_data("/output/shot_data/20242025/*.parquet")
         .pipe(prepare_data)
@@ -164,27 +172,35 @@ def _(X_test_full, X_test_min, clf_full, clf_min, y_test_full, y_test_min):
     pred_full = clf_full.predict_proba(polars_to_pandas(X_test_full))[:,1]
     pred_min = clf_min.predict_proba(polars_to_pandas(X_test_min))[:,1]
 
-    results = pl.from_dicts([
+    feature_results = pl.from_dicts([
         {
-            'Feature Set': 'Full',
+            'Feature Set': 'Pre-Shot + Post-Shot',
             'PR-AUC': average_precision_score(y_test_full, pred_full),
             'ROC-AUC': roc_auc_score(y_test_full, pred_full)
         },
         {
-            'Feature Set': 'Reduced',
+            'Feature Set': 'PreXG + Post-Shot',
             'PR-AUC': average_precision_score(y_test_min, pred_min),
             'ROC-AUC': roc_auc_score(y_test_min, pred_min)
         },
     ])
-    return pred_full, results
+    return feature_results, pred_full
 
 
 @app.cell
-def _(results):
-    (
-        GT(results)
+def _(feature_results):
+    features_table = (
+        GT(feature_results)
+        .tab_header(
+            title="Post-Shot Feature Set Comparison"
+        ).tab_source_note(
+            "Scores calculated on validation set."
+        )
         .fmt_number(columns=["PR-AUC", "ROC-AUC"], decimals=4)
     )
+
+    features_table
+    # print(features_table.as_latex())
     return
 
 
