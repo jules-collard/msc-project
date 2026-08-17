@@ -21,7 +21,7 @@ with app.setup:
     from data_readers import batch_read_shot_data
     from models.data import DataSplitter, prepare_data, polars_to_pandas
     from models.training import ModelTrainer
-    from models.features import pre_shot_features, pre_shot_features_pruned
+    from models.features import pre_shot_features, pre_shot_features_pruned, pre_shot_features_print
 
 
 @app.cell(hide_code=True)
@@ -53,8 +53,13 @@ def _():
 
 @app.cell
 def _(results):
-    (
+    experiments_table = (
         GT(results.drop('best_params'))
+        .tab_header(
+            title="Pre-Shot Model Comparison",
+        ).tab_source_note(
+            "Scores shown are cross-validated means on training set."
+        )
         .tab_stub(rowname_col="strategy", groupname_col="framework")
         .tab_stubhead("Model")
         .cols_label(
@@ -91,6 +96,8 @@ def _(results):
             stub_row_group_border_style="",
         )
     )
+    experiments_table
+    # print(experiments_table.as_latex())
     return
 
 
@@ -139,7 +146,10 @@ def _(X_test, X_train, y_test, y_train):
 @app.cell
 def _(X_test, clf):
     explainer = shap.TreeExplainer(clf.estimator_)
-    shap_values = explainer(polars_to_pandas(X_test))
+
+    X_test_pd = polars_to_pandas(X_test)
+    X_test_pd.columns = pre_shot_features_print
+    shap_values = explainer(X_test_pd)
     return (shap_values,)
 
 
@@ -147,6 +157,7 @@ def _(X_test, clf):
 def _(shap_values):
     shap.plots.beeswarm(shap_values, max_display=None, show=False)
     plt.gca()
+    plt.savefig("plots/model_selection/pre_shot_feature_importance.svg", bbox_inches='tight')
     return
 
 
@@ -200,10 +211,18 @@ def _(X_test, X_test_pruned, clf, clf_pruned, y_test, y_test_pruned):
 
 @app.cell
 def _(pruning_results):
-    (
+    pruning_table = (
         GT(pruning_results)
+        .tab_header(
+            title="Pre-Shot Feature Set Comparison",
+        ).tab_source_note(
+            "Scores shown are calculated on validation set."
+        )
         .fmt_number(columns=["PR-AUC", "ROC-AUC"], decimals=4)
     )
+
+    pruning_table
+    print(pruning_table.as_latex())
     return
 
 

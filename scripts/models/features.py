@@ -44,7 +44,8 @@ pre_shot_features_print = [
     "Shooter Goalwards Speed", 
     "Shooter Distance to Goal", 
     "Shooter Angle to Goal", 
-    "Visible Angle"
+    "Visible Angle",
+    "Shot Type"
 ]
 
 # Maintain order
