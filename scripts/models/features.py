@@ -51,6 +51,8 @@ pre_shot_features_print = [
 # Maintain order
 pre_shot_features_pruned = [f for f in pre_shot_features if f not in ["num_pressures_left", "num_pressures_right"]]
 
+pre_shot_features_speed = pre_shot_features_pruned + ["shot_speed"]
+
 post_shot_features = [
     "shot_speed",
     "goalline_y_norm",
@@ -63,4 +65,4 @@ post_shot_features = [
 
 post_shot_features_full = pre_shot_features_pruned + post_shot_features
 
-post_shot_features_minimal = post_shot_features + ['pre_shot']
+post_shot_features_minimal = post_shot_features + ["pre_shot"]
