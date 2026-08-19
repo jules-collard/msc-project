@@ -76,6 +76,8 @@ def main():
             c('GameDate') <= args.end_date
         )
 
+    print(f"Processing games from {args.start_date} to {args.end_date}...")
+
     sportlogiq_ids = games.select(c('SportlogiqGameID')).to_series().to_list()
     SMT_ids = games.select(c('SMTGameID')).to_series().to_list()
 
