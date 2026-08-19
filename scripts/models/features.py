@@ -23,6 +23,20 @@ pre_shot_features = [
     "shot_type"
 ]
 
+pre_shot_features_minimal = [
+    "total_pressure",
+    "num_defenders_in_shadow_lane",
+    "goalie_angle_to_shooter",
+    "goalie_in_shooting_lane",
+    "goalie_dist_to_goal",
+    "goalie_lateral_speed",
+    "shooter_goal_speed",
+    "shooter_dist_to_goal",
+    "shooter_angle_to_goal",
+    "visible_angle",
+    "shot_type"
+]
+
 pre_shot_features_print = [
     "Shot X", 
     "Shot Y", 

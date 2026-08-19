@@ -7,7 +7,7 @@ import optuna
 from scripts.data_readers import batch_read_shot_data
 from scripts.models.experiments import ExperimentRunner
 from scripts.models.data import prepare_data, post_shot_filter
-from scripts.models.features import pre_shot_features, pre_shot_features_pruned, pre_shot_features_speed, post_shot_features_full, post_shot_features_minimal
+from scripts.models.features import pre_shot_features, pre_shot_features_pruned, pre_shot_features_minimal, pre_shot_features_speed, post_shot_features_full, post_shot_features_minimal
 
 
 def main():
@@ -22,7 +22,7 @@ def main():
     parser.add_argument(
         "feature_set",
         type=str,
-        choices=["pre_shot", "pre_shot_pruned", "pre_shot_speed", "post_shot_full", "post_shot_minimal"],
+        choices=["pre_shot", "pre_shot_pruned", "pre_shot_minimal", "pre_shot_speed", "post_shot_full", "post_shot_minimal"],
         help="Feature set to use for training."
     )
 
@@ -124,6 +124,8 @@ def main():
             features = pre_shot_features
         case "pre_shot_pruned":
             features = pre_shot_features_pruned
+        case "pre_shot_minimal":
+            features = pre_shot_features_minimal
         case "pre_shot_speed":
             features = pre_shot_features_speed
         case "post_shot_full":

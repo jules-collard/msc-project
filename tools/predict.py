@@ -5,7 +5,7 @@ from polars import col as c
 
 from scripts.data_readers import batch_read_shot_data
 from scripts.models.data import DataSplitter, prepare_data, post_shot_filter, polars_to_pandas
-from scripts.models.features import pre_shot_features, pre_shot_features_pruned, post_shot_features_full, post_shot_features_minimal
+from scripts.models.features import pre_shot_features, pre_shot_features_pruned, pre_shot_features_minimal, post_shot_features_full, pre_shot_features_speed
 
 def main():
 
@@ -24,7 +24,7 @@ def main():
     parser.add_argument(
         "feature_set",
         type=str,
-        choices=["pre_shot", "pre_shot_pruned", "post_shot_full"],
+        choices=["pre_shot", "pre_shot_pruned", "pre_shot_minimal", "pre_shot_speed", "post_shot_full"],
         help="Feature set to use for prediction."
     )
 
@@ -56,6 +56,10 @@ def main():
             features = pre_shot_features
         case "pre_shot_pruned":
             features = pre_shot_features_pruned
+        case "pre_shot_minimal":
+            features = pre_shot_features_minimal
+        case "pre_shot_speed":
+            features = pre_shot_features_speed
         case "post_shot_full":
             features = post_shot_features_full
             data = data.pipe(post_shot_filter)
@@ -63,7 +67,7 @@ def main():
             raise ValueError(f"Unknown feature set: {args.feature_set}")
 
     X, _ = DataSplitter.extract_features_and_target(data, features, "goal")
-    ids: pl.DataFrame = data.select(c('game_id', 'period', 'shot_id'))
+    ids = data.select(c('game_id', 'period', 'shot_id'))
 
     clf = joblib.load(args.model_file)
     preds = clf.predict_proba(polars_to_pandas(X))[:,1]

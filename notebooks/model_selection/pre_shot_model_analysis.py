@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.23.14"
+__generated_with = "0.24.0"
 app = marimo.App(width="medium")
 
 with app.setup:
@@ -21,7 +21,7 @@ with app.setup:
     from data_readers import batch_read_shot_data
     from models.data import DataSplitter, prepare_data, polars_to_pandas
     from models.training import ModelTrainer
-    from models.features import pre_shot_features, pre_shot_features_pruned, pre_shot_features_print
+    from models.features import pre_shot_features, pre_shot_features_pruned, pre_shot_features_minimal, pre_shot_features_print
 
 
 @app.cell(hide_code=True)
@@ -143,7 +143,7 @@ def _(X_test, X_train, y_test, y_train):
     return (clf,)
 
 
-@app.cell
+@app.cell(disabled=True)
 def _(X_test, clf):
     explainer = shap.TreeExplainer(clf.estimator_)
 
@@ -153,7 +153,7 @@ def _(X_test, clf):
     return (shap_values,)
 
 
-@app.cell
+@app.cell(disabled=True)
 def _(shap_values):
     shap.plots.beeswarm(shap_values, max_display=None, show=False)
     plt.gca()
@@ -174,25 +174,49 @@ def _():
 
 @app.cell
 def _():
-    with open("models/pre_shot/pre_shot_full_lightgbm_params_s3590.json", "r") as f_pruned:
+    with open("models/pre_shot/pre_shot_lightgbm_params.json", "r") as f_pruned:
         params_pruned = json.load(f_pruned)
-    return (params_pruned,)
+
+    with open("models/pre_shot_minimal/pre_shot_minimal_lightgbm_params_s2487.json", "r") as f_minimal:
+        params_minimal = json.load(f_minimal)
+    return params_minimal, params_pruned
 
 
 @app.cell
-def _(data, params_pruned):
+def _(data, params_minimal, params_pruned):
     splitter_pruned = DataSplitter(data, pre_shot_features_pruned, "goal", split_path="models/train_test_20242025.npz")
+    splitter_minimal = DataSplitter(data, pre_shot_features_minimal, "goal", split_path="models/train_test_20242025.npz")
 
     X_train_pruned, y_train_pruned, X_test_pruned, y_test_pruned, _pruned = splitter_pruned.get_split_data()
+    X_train_minimal, y_train_minimal, X_test_minimal, y_test_minimal, _minimal = splitter_minimal.get_split_data()
 
     clf_pruned = ModelTrainer(X_train_pruned, y_train_pruned, 'lightgbm', 'WCE', loss_correct=True, seed=104, X_val=X_test_pruned, y_val=y_test_pruned, **params_pruned).train()
-    return X_test_pruned, clf_pruned, y_test_pruned
+    clf_minimal = ModelTrainer(X_train_minimal, y_train_minimal, 'lightgbm', 'WCE', loss_correct=True, seed=104, X_val=X_test_minimal, y_val=y_test_pruned, **params_minimal).train()
+    return (
+        X_test_minimal,
+        X_test_pruned,
+        clf_minimal,
+        clf_pruned,
+        y_test_minimal,
+        y_test_pruned,
+    )
 
 
 @app.cell
-def _(X_test, X_test_pruned, clf, clf_pruned, y_test, y_test_pruned):
+def _(
+    X_test,
+    X_test_minimal,
+    X_test_pruned,
+    clf,
+    clf_minimal,
+    clf_pruned,
+    y_test,
+    y_test_minimal,
+    y_test_pruned,
+):
     pred_full = clf.predict_proba(polars_to_pandas(X_test))[:,1]
     pred_pruned = clf_pruned.predict_proba(polars_to_pandas(X_test_pruned))[:,1]
+    pred_minimal = clf_minimal.predict_proba(polars_to_pandas(X_test_minimal))[:,1]
 
     pruning_results = pl.from_dicts([
         {
@@ -205,8 +229,13 @@ def _(X_test, X_test_pruned, clf, clf_pruned, y_test, y_test_pruned):
             'PR-AUC': average_precision_score(y_test_pruned, pred_pruned),
             'ROC-AUC': roc_auc_score(y_test_pruned, pred_pruned)
         },
+        {
+            'Feature Set': 'Minimal',
+            'PR-AUC': average_precision_score(y_test_minimal, pred_minimal),
+            'ROC-AUC': roc_auc_score(y_test_minimal, pred_minimal)
+        },
     ])
-    return pred_pruned, pruning_results
+    return pred_minimal, pred_pruned, pruning_results
 
 
 @app.cell
@@ -222,7 +251,7 @@ def _(pruning_results):
     )
 
     pruning_table
-    print(pruning_table.as_latex())
+    # print(pruning_table.as_latex())
     return
 
 
@@ -235,8 +264,8 @@ def _():
 
 
 @app.cell
-def _(pred_pruned, y_test_pruned):
-    prob_true, prob_pred = calibration_curve(y_test_pruned, pred_pruned, n_bins=6)
+def _(pred_minimal, y_test_minimal):
+    prob_true, prob_pred = calibration_curve(y_test_minimal, pred_minimal, n_bins=6)
 
     (
         pl.DataFrame({
