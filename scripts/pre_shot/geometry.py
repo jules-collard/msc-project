@@ -117,4 +117,4 @@ def visible_angle(x_expr: pl.Expr | str, y_expr: pl.Expr | str) -> pl.Expr:
     ratio = (d_1.pow(2) + d_2.pow(2) - 6.0 ** 2) / (2 * d_1 * d_2 + 1e-6)  # Add small epsilon to avoid division by zero
     angle = ratio.arccos().degrees() # Law of cosines
     
-    return angle.alias('visible_angle')
+    return pl.when(x_expr < 89).then(angle).otherwise(0).alias('visible_angle') # 0 if behind the net
