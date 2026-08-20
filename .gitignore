@@ -17,7 +17,9 @@ __marimo__/
 /data/
 /mappings/
 /output/
-/models/
+*.joblib
+*.parquet
+*.npz
 
 # Misc
 scripts/save_post_shot_data.py
