@@ -1,12 +1,13 @@
 import marimo
 
-__generated_with = "0.23.14"
+__generated_with = "0.24.0"
 app = marimo.App(width="medium")
 
 with app.setup:
     import marimo as mo
     import numpy as np
     import polars as pl
+    import plotnine as p9
     from polars import col as c
     from hockey_rink import NHLRink
     import matplotlib.pyplot as plt
@@ -21,37 +22,43 @@ with app.setup:
 
 @app.cell
 def _():
+    shots = (
+        pl.scan_parquet("/output/shot_data/20252026-clean/*.parquet")
+        .collect()
+    )
+    return (shots,)
+
+
+@app.cell
+def _(shots):
     game_id_mapping = read_game_id_mapping("mappings/NHL_20242025_20252026_game_smt_sportlogiq_id_map.csv")
     player_id_mapping = pl.read_csv("mappings/NHL_20242025_20252026_player_sportlogiq_id_map.csv").cast(pl.String)
 
-    game_ids = game_id_mapping.select(c('SportlogiqGameID')).to_series()
-    game_id_selector = mo.ui.dropdown.from_series(game_ids, value=204631)
+    game_ids = shots.select(c('game_id').cast(pl.Int64)).to_series()
+    game_id_selector = mo.ui.dropdown.from_series(game_ids, value=game_ids.first())
     game_id_selector
     return game_id_mapping, game_id_selector, player_id_mapping
 
 
 @app.cell
-def _(game_id_mapping, game_id_selector):
-    games = (
+def _(game_id_mapping, game_id_selector, shots):
+    game_info = (
         game_id_mapping
         .filter(
             c('SportlogiqGameID') == game_id_selector.value,
         )
     )
 
-    sportlogiq_ids = games.select(c('SportlogiqGameID').cast(pl.String)).to_series().to_list()
-    SMT_ids = games.select(c('SMTGameID')).to_series().to_list()
-
-    shots = (
-        pl.scan_parquet("output/post_shot_data_202510.parquet")
-        .filter(c('game_id').is_in(sportlogiq_ids))
-    )
+    sportlogiq_ids = game_info.select(c('SportlogiqGameID').cast(pl.String)).to_series().to_list()
+    SMT_ids = game_info.select(c('SMTGameID')).to_series().to_list()
 
     player_tracking = batch_read_entity_tracking(
-        [f"data/smtoasis/*/games/{id}/*_entity_tracking_processed_measurements.parquet" for id in SMT_ids],
-        mapping=games.lazy()
+        [f"/data/smtoasis*/*/games/{id}/*_entity_tracking_processed_measurements.parquet" for id in SMT_ids],
+        mapping=game_info.lazy()
     )
-    return player_tracking, shots
+
+    game_shots = shots.filter(c('game_id').cast(pl.Int64) == game_id_selector.value)
+    return game_shots, player_tracking
 
 
 @app.cell
@@ -59,20 +66,21 @@ def _(
     c_slider,
     d_back_slider,
     d_front_slider,
+    game_shots,
     n_slider,
     player_id_mapping,
     player_tracking,
     q_slider,
-    shots,
 ):
-    pre_shot_data = PreShotData(shots, player_tracking, player_id_mapping, d_front=d_front_slider.value, d_back=d_back_slider.value, q=q_slider.value, n=n_slider.value, c=c_slider.value)
+    pre_shot_data = PreShotData(game_shots.lazy(), player_tracking, player_id_mapping, d_front=d_front_slider.value, d_back=d_back_slider.value, q=q_slider.value, n=n_slider.value, c=c_slider.value)
     return (pre_shot_data,)
 
 
 @app.cell
 def _(pre_shot_data):
     shots_with_tracking = pre_shot_data.defender_data().collect()
-    return (shots_with_tracking,)
+    shots_with_goalie_tracking = pre_shot_data.goalie_data().collect()
+    return shots_with_goalie_tracking, shots_with_tracking
 
 
 @app.cell
@@ -86,10 +94,10 @@ def _(shots_with_tracking):
 
 
 @app.cell
-def _(pre_shot_data, shot_id_selector, shots_with_tracking):
+def _(shot_id_selector, shots_with_goalie_tracking, shots_with_tracking):
     shot_tracking = shots_with_tracking.filter(c('shot_id') == shot_id_selector.value)
 
-    goalie_tracking = pre_shot_data.goalie_data().filter(c('shot_id') == shot_id_selector.value).collect()
+    goalie_tracking = shots_with_goalie_tracking.filter(c('shot_id') == shot_id_selector.value)
 
     # shot_tracking.select(c('defender_id', 'dist_to_shooter', 'angle_to_shooter', 'inside_shooting_lane', 'inside_shadow_lane', 'pressure')).sort(c('pressure'), descending=True)
     return goalie_tracking, shot_tracking
@@ -184,15 +192,15 @@ def _(
     fig, ax = plt.subplots()
     rink.draw(display_range='ozone', rotation=90)
 
-    rink.arrow(
-        x=shot_tracking.select(c('x_adj')), 
-        y=shot_tracking.select(c('y_adj')),
-        dx=shot_tracking.select(c('vx_adj')), 
-        dy=shot_tracking.select(c('vy_adj')),
-        facecolor='black',
-        alpha=0.4,
-        # draw_kw={'display_range': 'ozone', 'rotation': 90}
-    )
+    # rink.arrow(
+    #     x=shot_tracking.select(c('x_adj')), 
+    #     y=shot_tracking.select(c('y_adj')),
+    #     dx=shot_tracking.select(c('vx_adj')), 
+    #     dy=shot_tracking.select(c('vy_adj')),
+    #     facecolor='black',
+    #     alpha=0.4,
+    #     # draw_kw={'display_range': 'ozone', 'rotation': 90}
+    # )
 
     rink.scatter(
         x=shot_tracking.select(c('x_adj')),
