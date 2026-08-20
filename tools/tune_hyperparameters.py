@@ -7,7 +7,7 @@ import optuna
 from scripts.data_readers import batch_read_shot_data
 from scripts.models.experiments import ExperimentRunner
 from scripts.models.data import prepare_data, post_shot_filter
-from scripts.models.features import pre_shot_features, pre_shot_features_pruned, pre_shot_features_minimal, pre_shot_features_speed, post_shot_features_full, post_shot_features_minimal
+from scripts.models.features import pre_shot_features, pre_shot_features_pruned, pre_shot_features_minimal, pre_shot_features_speed, post_shot_features_full, post_shot_features_minimal, post_shot_features_xg
 
 
 def main():
@@ -22,7 +22,7 @@ def main():
     parser.add_argument(
         "feature_set",
         type=str,
-        choices=["pre_shot", "pre_shot_pruned", "pre_shot_minimal", "pre_shot_speed", "post_shot_full", "post_shot_minimal"],
+        choices=["pre_shot", "pre_shot_pruned", "pre_shot_minimal", "pre_shot_speed", "post_shot_full", "post_shot_minimal", "post_shot_xg"],
         help="Feature set to use for training."
     )
 
@@ -112,9 +112,9 @@ def main():
 
     args = parser.parse_args()
 
-    if args.feature_set == "post_shot_minimal" and args.xg_data_pattern is None:
+    if args.feature_set == "post_shot_xg" and args.xg_data_pattern is None:
         parser.error("--post-shot-minimal-config is required when feature_set is post_shot_minimal")
-    elif args.xg_data_pattern is not None and args.feature_set != "post_shot_minimal":
+    elif args.xg_data_pattern is not None and args.feature_set != "post_shot_xg":
         parser.error("--post-shot-minimal-config should only be used when feature_set is post_shot_minimal")
 
     data = batch_read_shot_data(args.data_pattern).pipe(prepare_data)
@@ -133,6 +133,9 @@ def main():
             data = data.pipe(post_shot_filter)
         case "post_shot_minimal":
             features = post_shot_features_minimal
+            data = data.pipe(post_shot_filter)
+        case "post_shot_xg":
+            features = post_shot_features_xg
             xg_data = pl.scan_parquet(args.xg_data_pattern)
             data = (
                 data

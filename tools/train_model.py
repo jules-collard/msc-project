@@ -32,7 +32,7 @@ def main():
     parser.add_argument(
         "feature_set",
         type=str,
-        choices=["pre_shot", "pre_shot_pruned", "pre_shot_minimal", "pre_shot_speed", "post_shot_full", "post_shot_minimal"],
+        choices=["pre_shot", "pre_shot_pruned", "pre_shot_minimal", "pre_shot_speed", "post_shot_full", "post_shot_minimal", "post_shot_xg"],
         help="Feature set to use for training."
     )
 
@@ -49,7 +49,7 @@ def main():
     )
 
     parser.add_argument(
-        "--data_pattern",
+        "--data-pattern",
         type=str,
         default="/output/shot_data/20242025/*.parquet",
         help="Pattern to read data files."
@@ -95,7 +95,7 @@ def main():
             features = post_shot_features_minimal
             data = data.pipe(post_shot_filter)
         case _:
-            raise ValueError(f"Unknown feature set: {args.feature_set}")
+            raise NotImplementedError(f"Unknown feature set: {args.feature_set}")
 
     if args.split_path is not None:
         print(f"Using split file: {args.split_path}")
