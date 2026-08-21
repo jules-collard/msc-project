@@ -23,7 +23,7 @@ def main():
     parser.add_argument(
         "feature_set",
         type=str,
-        choices=["pre_shot", "pre_shot_pruned", "pre_shot_minimal", "pre_shot_speed", "post_shot_full", "post_shot_minimal"],
+        choices=["pre_shot", "pre_shot_pruned", "pre_shot_minimal", "pre_shot_speed", "post_shot_full", "post_shot_minimal", "post_shot_xg"],
         help="Feature set to use for prediction."
     )
 
@@ -46,15 +46,22 @@ def main():
         help="Column name for the prediction output."
     )
 
+    parser.add_argument(
+        "--xg-data-pattern",
+        type=str,
+        default=None,
+        help="Pattern/file to read xG predictions - only used when feature_set is 'post_shot_xg'."
+    )
+
     args = parser.parse_args()
 
     data = batch_read_shot_data(args.data_pattern).pipe(prepare_data).collect()
     features = get_features(args.feature_set)
 
-    # if "pre_shot" in features and args.xg_data_pattern is None:
-    #     parser.error("--xg-data-pattern is required")
-    # elif args.xg_data_pattern is not None and "pre_xg" not in features:
-    #     parser.error("--xg-data-pattern should only be used when feature_set is post_shot_xg")
+    if "pre_shot" in features and args.xg_data_pattern is None:
+        parser.error("--xg-data-pattern is required")
+    elif args.xg_data_pattern is not None and "pre_shot" not in features:
+        parser.error("--xg-data-pattern should only be used when feature_set is post_shot_xg")
 
     if args.feature_set.startswith("post_shot"):
         data = data.pipe(post_shot_filter)
