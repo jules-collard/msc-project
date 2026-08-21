@@ -192,7 +192,6 @@ def _(
         + p9.geom_hline(yintercept=base_rate, linetype="dashed")
         + theme_bw(base_size=12)
         + p9.xlim(0,1)
-        # + p9.ylim(0,1)
         + labs(y="Precison", x="Recall", color="Model", linetype="Data")
         + p9.scale_y_continuous(labels=y_labels, breaks=y_breaks)
     )
@@ -228,7 +227,7 @@ def _(post_fpr, post_tpr, pre_fpr, pre_tpr, sportlogiq_fpr, sportlogiq_tpr):
         ggplot(roc_df, aes(x='fpr', y='tpr', color='model'))
         + geom_line()
         + p9.geom_abline(linetype='dashed')
-        + theme_bw(base_size=10)
+        + theme_bw(base_size=12)
         + p9.xlim(0,1)
         + p9.ylim(0,1)
         + labs(y="True Positive Rate", x="False Positive Rate", color="Model", linetype="Data")
@@ -271,10 +270,10 @@ def _(goals, goals_post_shot, post_shot, pre_shot, sportlogiq):
         + p9.xlim(0,1)
         + p9.ylim(0,1)
         + labs(x="Mean Predicted Probability", y="Fraction of Positives", color="Model")
-        + theme_bw(base_size=10)
+        + theme_bw(base_size=12)
     )
 
-    calibration_plot.save("plots/evaluation/calibration.svg")
+    # calibration_plot.save("plots/evaluation/calibration.svg")
     calibration_plot
     return
 
