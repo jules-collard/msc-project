@@ -111,7 +111,8 @@ def main():
     )
 
     args = parser.parse_args()
-
+    features = get_features(args.feature_set)
+    
     if "pre_shot" in features and args.xg_data_pattern is None:
         parser.error("--xg-data-pattern is required")
     elif args.xg_data_pattern is not None and "pre_shot" not in features:
@@ -119,7 +120,6 @@ def main():
 
     data = batch_read_shot_data(args.data_pattern).pipe(prepare_data)
 
-    features = get_features(args.feature_set)
 
     if args.feature_set.startswith("post_shot"):
         data = data.pipe(post_shot_filter)
