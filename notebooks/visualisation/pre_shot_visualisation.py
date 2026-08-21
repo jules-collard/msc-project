@@ -192,17 +192,17 @@ def _(
     fig, ax = plt.subplots()
     rink.draw(display_range='ozone', rotation=90)
 
-    # rink.arrow(
-    #     x=shot_tracking.select(c('x_adj')), 
-    #     y=shot_tracking.select(c('y_adj')),
-    #     dx=shot_tracking.select(c('vx_adj')), 
-    #     dy=shot_tracking.select(c('vy_adj')),
-    #     facecolor='black',
-    #     alpha=0.4,
-    #     # draw_kw={'display_range': 'ozone', 'rotation': 90}
-    # )
+    rink.arrow(
+        x=shot_tracking.select(c('x_adj')), 
+        y=shot_tracking.select(c('y_adj')),
+        dx=shot_tracking.select(c('vx_adj')), 
+        dy=shot_tracking.select(c('vy_adj')),
+        facecolor='black',
+        alpha=0.4,
+        # draw_kw={'display_range': 'ozone', 'rotation': 90}
+    )
 
-    rink.scatter(
+    defender_scatter = rink.scatter(
         x=shot_tracking.select(c('x_adj')),
         y=shot_tracking.select(c('y_adj')),
         s=100,
@@ -291,8 +291,12 @@ def _(
         zorder=9
     )
 
+    cbar = fig.colorbar(defender_scatter, ax=ax, fraction=0.03, pad=0.02)
+    cbar.set_label("Defender pressure")
+
     ax.add_patch(lane)
     ax.add_patch(shadow_lane)
+    # plt.savefig("plots/shot_detection/pressure_example.svg")
     return
 
 
