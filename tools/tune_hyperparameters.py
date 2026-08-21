@@ -7,7 +7,7 @@ import optuna
 from scripts.data_readers import batch_read_shot_data
 from scripts.models.experiments import ExperimentRunner
 from scripts.models.data import prepare_data, post_shot_filter
-from scripts.models.features import pre_shot_features, pre_shot_features_pruned, pre_shot_features_minimal, pre_shot_features_speed, post_shot_features_full, post_shot_features_minimal, post_shot_features_xg
+from scripts.models.features import get_features
 
 
 def main():
@@ -44,7 +44,7 @@ def main():
         "--xg-data-pattern",
         type=str,
         default=None,
-        help="Pattern/file to read xG predictions - only used when feature_set is 'post_shot_minimal'."
+        help="Pattern/file to read xG predictions - only used when feature_set is 'post_shot_xg'."
     )
 
     parser.add_argument(
@@ -112,38 +112,25 @@ def main():
 
     args = parser.parse_args()
 
-    if args.feature_set == "post_shot_xg" and args.xg_data_pattern is None:
-        parser.error("--post-shot-minimal-config is required when feature_set is post_shot_minimal")
-    elif args.xg_data_pattern is not None and args.feature_set != "post_shot_xg":
-        parser.error("--post-shot-minimal-config should only be used when feature_set is post_shot_minimal")
+    if "pre_shot" in features and args.xg_data_pattern is None:
+        parser.error("--xg-data-pattern is required")
+    elif args.xg_data_pattern is not None and "pre_shot" not in features:
+        parser.error("--xg-data-pattern should only be used when feature_set is post_shot_xg")
 
     data = batch_read_shot_data(args.data_pattern).pipe(prepare_data)
 
-    match args.feature_set:
-        case "pre_shot":
-            features = pre_shot_features
-        case "pre_shot_pruned":
-            features = pre_shot_features_pruned
-        case "pre_shot_minimal":
-            features = pre_shot_features_minimal
-        case "pre_shot_speed":
-            features = pre_shot_features_speed
-        case "post_shot_full":
-            features = post_shot_features_full
-            data = data.pipe(post_shot_filter)
-        case "post_shot_minimal":
-            features = post_shot_features_minimal
-            data = data.pipe(post_shot_filter)
-        case "post_shot_xg":
-            features = post_shot_features_xg
-            xg_data = pl.scan_parquet(args.xg_data_pattern)
-            data = (
-                data
-                .pipe(post_shot_filter)
-                .join(xg_data, on=["game_id", "period", "shot_id"], how="left", validate="1:1")
-            )
-        case _:
-            raise NotImplementedError(f"Unknown feature set: {args.feature_set}")
+    features = get_features(args.feature_set)
+
+    if args.feature_set.startswith("post_shot"):
+        data = data.pipe(post_shot_filter)
+
+    if "pre_shot" in features:
+        xg_data = pl.scan_parquet(args.xg_data_pattern)
+        data = (
+            data
+            .pipe(post_shot_filter)
+            .join(xg_data, on=["game_id", "period", "shot_id"], how="left", validate="1:1")
+        )
     
     experiment = ExperimentRunner(data.collect(), features, "goal", split_path=args.split_path, n_estimators=args.n_estimators, seed=args.seed)
 

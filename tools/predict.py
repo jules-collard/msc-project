@@ -5,8 +5,7 @@ from polars import col as c
 
 from scripts.data_readers import batch_read_shot_data
 from scripts.models.data import DataSplitter, prepare_data, post_shot_filter, polars_to_pandas
-from scripts.models.features import pre_shot_features, pre_shot_features_pruned, pre_shot_features_minimal, post_shot_features_full, pre_shot_features_speed
-
+from scripts.models.features import get_features
 def main():
 
     parser = argparse.ArgumentParser(
@@ -50,21 +49,23 @@ def main():
     args = parser.parse_args()
 
     data = batch_read_shot_data(args.data_pattern).pipe(prepare_data).collect()
+    features = get_features(args.feature_set)
 
-    match args.feature_set:
-        case "pre_shot":
-            features = pre_shot_features
-        case "pre_shot_pruned":
-            features = pre_shot_features_pruned
-        case "pre_shot_minimal":
-            features = pre_shot_features_minimal
-        case "pre_shot_speed":
-            features = pre_shot_features_speed
-        case "post_shot_full":
-            features = post_shot_features_full
-            data = data.pipe(post_shot_filter)
-        case _:
-            raise ValueError(f"Unknown feature set: {args.feature_set}")
+    if "pre_shot" in features and args.xg_data_pattern is None:
+        parser.error("--xg-data-pattern is required")
+    elif args.xg_data_pattern is not None and "pre_xg" not in features:
+        parser.error("--xg-data-pattern should only be used when feature_set is post_shot_xg")
+
+    if args.feature_set.startswith("post_shot"):
+        data = data.pipe(post_shot_filter)
+
+    if "pre_shot" in features:
+        xg_data = pl.scan_parquet(args.xg_data_pattern).collect()
+        data = (
+            data
+            .pipe(post_shot_filter)
+            .join(xg_data, on=["game_id", "period", "shot_id"], how="left", validate="1:1")
+        )
 
     X, _ = DataSplitter.extract_features_and_target(data, features, "goal")
     ids = data.select(c('game_id', 'period', 'shot_id'))

@@ -82,3 +82,22 @@ post_shot_features_full = pre_shot_features_pruned + post_shot_features
 post_shot_features_minimal = pre_shot_features_minimal + post_shot_features
 
 post_shot_features_xg = ["pre_shot"] + post_shot_features
+
+def get_features(feature_set: str) -> list[str]:
+    match feature_set:
+        case "pre_shot":
+            return pre_shot_features
+        case "pre_shot_pruned":
+            return pre_shot_features_pruned
+        case "pre_shot_minimal":
+            return pre_shot_features_minimal
+        case "pre_shot_speed":
+            return pre_shot_features_speed
+        case "post_shot_full":
+            return post_shot_features_full
+        case "post_shot_minimal":
+            return post_shot_features_minimal
+        case "post_shot_xg":
+            return post_shot_features_xg
+        case _:
+            raise ValueError(f"Unknown feature set: {feature_set}")

@@ -1,9 +1,11 @@
 import argparse
 import json
 
+import polars as pl
+
 from scripts.data_readers import batch_read_shot_data
 from scripts.models.data import DataSplitter, prepare_data, post_shot_filter
-from scripts.models.features import pre_shot_features, pre_shot_features_pruned, pre_shot_features_minimal, pre_shot_features_speed, post_shot_features_full, post_shot_features_minimal
+from scripts.models.features import get_features
 from scripts.models.training import ModelTrainer
 
 
@@ -56,6 +58,13 @@ def main():
     )
 
     parser.add_argument(
+        "--xg-data-pattern",
+        type=str,
+        default=None,
+        help="Pattern/file to read xG predictions - only used when feature_set is 'post_shot_xg'."
+    )
+
+    parser.add_argument(
         "--split-path",
         type=str,
         default=None,
@@ -77,25 +86,25 @@ def main():
 
     args = parser.parse_args()
 
-    data = batch_read_shot_data(args.data_pattern).pipe(prepare_data).collect()
 
-    match args.feature_set:
-        case "pre_shot":
-            features = pre_shot_features
-        case "pre_shot_pruned":
-            features = pre_shot_features_pruned
-        case "pre_shot_minimal":
-            features = pre_shot_features_minimal
-        case "pre_shot_speed":
-            features = pre_shot_features_speed
-        case "post_shot_full":
-            features = post_shot_features_full
-            data = data.pipe(post_shot_filter)
-        case "post_shot_minimal":
-            features = post_shot_features_minimal
-            data = data.pipe(post_shot_filter)
-        case _:
-            raise NotImplementedError(f"Unknown feature set: {args.feature_set}")
+    data = batch_read_shot_data(args.data_pattern).pipe(prepare_data).collect()
+    features = get_features(args.feature_set)
+
+    if "pre_shot" in features and args.xg_data_pattern is None:
+        parser.error("--xg-data-pattern is required")
+    elif args.xg_data_pattern is not None and "pre_shot" not in features:
+        parser.error("--xg-data-pattern should only be used when feature_set is post_shot_xg")
+
+    if args.feature_set.startswith("post_shot"):
+        data = data.pipe(post_shot_filter)
+
+    if "pre_shot" in features:
+        xg_data = pl.scan_parquet(args.xg_data_pattern).collect()
+        data = (
+            data
+            .pipe(post_shot_filter)
+            .join(xg_data, on=["game_id", "period", "shot_id"], how="left", validate="1:1")
+        )
 
     if args.split_path is not None:
         print(f"Using split file: {args.split_path}")
