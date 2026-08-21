@@ -17,12 +17,12 @@ with app.setup:
 
     from data_readers import batch_read_shot_data
     from models.data import prepare_data, polars_to_pandas
-    from models.features import pre_shot_features_minimal, post_shot_features_full, pre_shot_features_print
+    from models.features import pre_shot_features_minimal
 
 
 @app.cell
 def _():
-    shot_data = batch_read_shot_data("/scratch/shot_data/20252026/*.parquet")
+    shot_data = batch_read_shot_data("/output/shot_data/20252026-clean/*.parquet")
     return (shot_data,)
 
 
@@ -43,10 +43,10 @@ def _(shot_data):
 
 
 @app.cell
-def _():
-    # X = data.select(pre_shot_features_minimal)
+def _(data):
+    X = polars_to_pandas(data.select(pre_shot_features_minimal))
     # explainer = shap.TreeExplainer(pre_shot_model.estimator_)
-    # shap_values = explainer(polars_to_pandas(X))
+    # shap_values = explainer(X)
     # joblib.dump(shap_values, "models/pre_shot_minimal/shap_values_20252026.joblib")
     shap_values = joblib.load("models/pre_shot_minimal/shap_values_20252026.joblib")
     return (shap_values,)
@@ -64,45 +64,63 @@ def _(data, shap_values):
     return (shap_df,)
 
 
-@app.function
-def shap_dependence_plot(df: pl.DataFrame, variable: str, variable_title = None, smooth=True):
-    aes_y = f"{variable}_shap"
-    x_label = variable_title if variable_title else variable
-    plot = (
-        ggplot(df, aes(x=variable, y=aes_y))
-        + p9.geom_hline(yintercept=0, linetype="dotted")
-        + geom_point(alpha=0.05)
-        + theme_bw(base_size=10)
-        + labs(x=x_label, y="SHAP Value (log-odds)")
-    )
-    if smooth:
-        plot = plot + geom_smooth(data=df.sample(999), colour="red", se=False)
-    return plot
+@app.cell
+def _():
+    features_dict = {
+      "total_pressure": "Defensive Pressure",
+      "num_defenders_in_shadow_lane": "# Defenders in Shadow Lane",
+      "goalie_angle_to_shooter": "Goalie Angle to Shooter (degrees)",
+      "goalie_in_shooting_lane": "Goalie in Shooting Lane",
+      "goalie_dist_to_goal": "Goalie Distance to Goal (ft)",
+      "goalie_lateral_speed": "Goalie Lateral Speed (ft/s)",
+      "shooter_goal_speed": "Shooter Goalwards Speed (ft/s)",
+      "shooter_dist_to_goal": "Shooter Distance to Goal (ft)",
+      "shooter_angle_to_goal": "Shooter Angle to Goal (degrees)",
+      "visible_angle": "Visible Angle (degrees)",
+      "shot_type": "Shot Type"
+    }
+    return (features_dict,)
 
 
 @app.cell
-def _(shap_df):
-    distance_plot = shap_dependence_plot(shap_df, "shooter_dist_to_goal", "Shooter Distance to Goal (ft)")
-    angle_plot = shap_dependence_plot(shap_df, "shooter_angle_to_goal", "Shooter Angle to Goal (degrees)")
-    visible_angle_plot = shap_dependence_plot(shap_df, "visible_angle", "Visible Angle (degrees)")
-    goal_speed_plot = shap_dependence_plot(shap_df, "shooter_goal_speed", "Shooter Goalwards Speed (ft/s)")
+def _(features_dict, shap_values):
+    def shap_dependence_plot(df: pl.DataFrame, variable: str):
+        interaction_col = df.columns[shap.utils.potential_interactions(shap_values[:,variable], shap_values)[0]]
+    
+        aes_y = f"{variable}_shap"
+        x_label = features_dict[variable]
+        colour_label = features_dict[interaction_col]
+    
+        plot = (
+            ggplot(df, aes(x=variable, y=aes_y, colour=interaction_col))
+            + p9.geom_hline(yintercept=0, linetype="dotted")
+            + geom_point(alpha=0.05)
+            + theme_bw(base_size=10)
+            + labs(x=x_label, y="SHAP", colour=colour_label)
+            + p9.theme(legend_title=p9.element_text(angle=90, size=8), legend_title_position="right", legend_key_width=10, legend_text=p9.element_text(size=8))
+        )
+        return plot
+
+    return (shap_dependence_plot,)
+
+
+@app.cell
+def _(shap_dependence_plot, shap_df):
+    distance_plot = shap_dependence_plot(shap_df, "shooter_dist_to_goal")
+    angle_plot = shap_dependence_plot(shap_df, "shooter_angle_to_goal")
+    visible_angle_plot = shap_dependence_plot(shap_df, "visible_angle")
+    goal_speed_plot = shap_dependence_plot(shap_df, "shooter_goal_speed")
 
     (distance_plot | angle_plot) / (visible_angle_plot | goal_speed_plot)
     return
 
 
 @app.cell
-def _():
-    pre_shot_features_minimal
-    return
-
-
-@app.cell
-def _(shap_df):
-    goalie_distance_plot = shap_dependence_plot(shap_df, "goalie_dist_to_goal", "Goalie Distance to Goal (ft)", smooth=False)
-    goalie_lateral_speed_plot = shap_dependence_plot(shap_df, "goalie_lateral_speed", "Goalie Lateral Speed (ft/s)")
-    goalie_angle_plot = shap_dependence_plot(shap_df, "goalie_angle_to_shooter", "Goalie Angle to Shooter (degrees)", smooth=False)
-    pressure_plot = shap_dependence_plot(shap_df, "total_pressure", "Defensive Pressure")
+def _(shap_dependence_plot, shap_df):
+    goalie_distance_plot = shap_dependence_plot(shap_df, "goalie_dist_to_goal")
+    goalie_lateral_speed_plot = shap_dependence_plot(shap_df, "goalie_lateral_speed")
+    goalie_angle_plot = shap_dependence_plot(shap_df, "goalie_angle_to_shooter")
+    pressure_plot = shap_dependence_plot(shap_df, "total_pressure")
 
     (goalie_angle_plot) / (goalie_lateral_speed_plot | pressure_plot)
     return
@@ -135,6 +153,7 @@ def _(shap_df):
         + theme_bw(base_size=10)
         + labs(x="Shot Type", y="SHAP Value (log-odds)", colour="Distance to Goal")
         + p9.theme(axis_text_x=p9.element_text(rotation=45))
+        + p9.theme(legend_title=p9.element_text(angle=90, size=8), legend_title_position="left", legend_key_width=10, legend_text=p9.element_text(size=8))
     )
 
     (defender_lane_plot | goalie_lane_plot) / shot_type_plot
