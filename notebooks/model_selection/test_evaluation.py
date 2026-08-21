@@ -41,8 +41,7 @@ def _(post_shot_xg, pre_shot_xg, shot_data):
             on=["game_id", "period", "shot_id"],
             how='left',
             validate='1:1'
-        )
-        .with_columns(
+        ).with_columns(
             pl.when(c('type').str.contains('blocked')).then(0).otherwise(c('post_shot')).alias('post_shot'),
         ).with_columns(
             c('post_shot').fill_null(c('pre_shot')).alias('post_shot_imputed')
@@ -66,8 +65,6 @@ def get_predictions(data: pl.DataFrame):
 
 @app.cell
 def _(data):
-    unblocked = data.filter(c('post_shot').is_not_null(), c('type').str.contains('blocked').not_())
-
     goals, sportlogiq, pre_shot, _, post_shot_imputed = get_predictions(data)
 
     post_shot_valid = data.filter(c('post_shot').is_not_null())
@@ -148,31 +145,41 @@ def _(goals, goals_post_shot, post_shot, pre_shot, sportlogiq):
 
 
 @app.cell
+def _(data):
+    base_rate = data.select(c('goal')).mean().item()
+    y_breaks = [0.00, base_rate, 0.25, 0.50, 0.75, 1.00]
+
+    # 2. Define the exact text for each corresponding tick
+    y_labels = ["0.00", f"{base_rate:.3f}", "0.25", "0.50", "0.75", "1.00"]
+    return base_rate, y_breaks, y_labels
+
+
+@app.cell
 def _(
+    base_rate,
     post_precision,
     post_recall,
     pre_precision,
     pre_recall,
     sportlogiq_precision,
     sportlogiq_recall,
+    y_breaks,
+    y_labels,
 ):
     df_pre = pl.DataFrame({
         'model': 'Pre-Shot',
-        'data': 'All Shots',
         'precision': pre_precision,
         'recall': pre_recall,
     })
 
     df_sportlogiq = pl.DataFrame({
         'model': 'Sportlogiq',
-        'data': 'All Shots',
         'precision': sportlogiq_precision,
         'recall': sportlogiq_recall,
     })
 
     df_post = pl.DataFrame({
         'model': 'Post-Shot',
-        'data': 'Unblocked Shots',
         'precision': post_precision,
         'recall': post_recall,
     })
@@ -182,10 +189,12 @@ def _(
     pr_plot = (
         ggplot(pr_df, aes(x='recall', y='precision', color='model'))
         + geom_line()
-        + theme_bw(base_size=10)
+        + p9.geom_hline(yintercept=base_rate, linetype="dashed")
+        + theme_bw(base_size=12)
         + p9.xlim(0,1)
-        + p9.ylim(0,1)
+        # + p9.ylim(0,1)
         + labs(y="Precison", x="Recall", color="Model", linetype="Data")
+        + p9.scale_y_continuous(labels=y_labels, breaks=y_breaks)
     )
 
     # pr_plot.save("plots/evaluation/pr_curve.svg")
@@ -197,21 +206,18 @@ def _(
 def _(post_fpr, post_tpr, pre_fpr, pre_tpr, sportlogiq_fpr, sportlogiq_tpr):
     df_roc_pre = pl.DataFrame({
         'model': 'Pre-Shot',
-        'data': 'All Shots',
         'fpr': pre_fpr,
         'tpr': pre_tpr,
     })
 
     df_roc_sportlogiq = pl.DataFrame({
         'model': 'Sportlogiq',
-        'data': 'All Shots',
         'fpr': sportlogiq_fpr,
         'tpr': sportlogiq_tpr,
     })
 
     df_roc_post = pl.DataFrame({
         'model': 'Post-Shot',
-        'data': 'Unblocked Shots',
         'fpr': post_fpr,
         'tpr': post_tpr,
     })
@@ -237,7 +243,7 @@ def _(post_fpr, post_tpr, pre_fpr, pre_tpr, sportlogiq_fpr, sportlogiq_tpr):
 def _(goals, goals_post_shot, post_shot, pre_shot, sportlogiq):
     pre_prob_true, pre_prob_pred = calibration_curve(goals, pre_shot, n_bins=6)
     post_prob_true, post_prob_pred = calibration_curve(goals_post_shot, post_shot, n_bins=6)
-    sportlogiq_prob_true, sportlogiq_prob_pred = calibration_curve(goals, sportlogiq)
+    sportlogiq_prob_true, sportlogiq_prob_pred = calibration_curve(goals, sportlogiq, n_bins=6)
 
     df_pre_cal = pl.DataFrame({
         'model': 'Pre-Shot',
@@ -268,7 +274,7 @@ def _(goals, goals_post_shot, post_shot, pre_shot, sportlogiq):
         + theme_bw(base_size=10)
     )
 
-    # calibration_plot.save("plots/evaluation/calibration.svg")
+    calibration_plot.save("plots/evaluation/calibration.svg")
     calibration_plot
     return
 

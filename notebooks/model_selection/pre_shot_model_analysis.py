@@ -123,7 +123,7 @@ def _():
 @app.cell
 def _():
     data = (
-        batch_read_shot_data("/output/shot_data/20242025/*.parquet")
+        batch_read_shot_data("/output/shot_data/20242025-clean/*.parquet")
         .pipe(prepare_data)
         .collect()
     )
@@ -139,7 +139,7 @@ def _(X_test, X_train, y_test, y_train):
     with open("models/pre_shot/pre_shot_full_lightgbm_params_s3590.json", "r") as f:
         params = json.load(f)
 
-    clf = ModelTrainer(X_train, y_train, 'lightgbm', 'WCE', loss_correct=True, seed=104, X_val=X_test, y_val=y_test, **params).train()
+    clf = ModelTrainer(X_train, y_train, 'lightgbm', 'WCE', loss_correct=True, seed=104, X_val=X_test, y_val=y_test, n_estimators=1200, **params).train()
     return (clf,)
 
 
@@ -174,7 +174,7 @@ def _():
 
 @app.cell
 def _():
-    with open("models/pre_shot/pre_shot_lightgbm_params.json", "r") as f_pruned:
+    with open("models/pre_shot/pre_shot_lightgbm_params_s933.json", "r") as f_pruned:
         params_pruned = json.load(f_pruned)
 
     with open("models/pre_shot_minimal/pre_shot_minimal_lightgbm_params_s2487.json", "r") as f_minimal:
@@ -190,8 +190,8 @@ def _(data, params_minimal, params_pruned):
     X_train_pruned, y_train_pruned, X_test_pruned, y_test_pruned, _pruned = splitter_pruned.get_split_data()
     X_train_minimal, y_train_minimal, X_test_minimal, y_test_minimal, _minimal = splitter_minimal.get_split_data()
 
-    clf_pruned = ModelTrainer(X_train_pruned, y_train_pruned, 'lightgbm', 'WCE', loss_correct=True, seed=104, X_val=X_test_pruned, y_val=y_test_pruned, **params_pruned).train()
-    clf_minimal = ModelTrainer(X_train_minimal, y_train_minimal, 'lightgbm', 'WCE', loss_correct=True, seed=104, X_val=X_test_minimal, y_val=y_test_pruned, **params_minimal).train()
+    clf_pruned = ModelTrainer(X_train_pruned, y_train_pruned, 'lightgbm', 'WCE', loss_correct=True, seed=104, X_val=X_test_pruned, y_val=y_test_pruned, n_estimators=1200, **params_pruned).train()
+    clf_minimal = ModelTrainer(X_train_minimal, y_train_minimal, 'lightgbm', 'WCE', loss_correct=True, seed=104, X_val=X_test_minimal, y_val=y_test_pruned, n_estimators=1200, **params_minimal).train()
     return (
         X_test_minimal,
         X_test_pruned,
@@ -245,7 +245,7 @@ def _(pruning_results):
         .tab_header(
             title="Pre-Shot Feature Set Comparison",
         ).tab_source_note(
-            "Scores shown are calculated on validation set."
+            "Scores calculated on validation set."
         )
         .fmt_number(columns=["PR-AUC", "ROC-AUC"], decimals=4)
     )

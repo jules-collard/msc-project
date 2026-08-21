@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.23.14"
+__generated_with = "0.24.0"
 app = marimo.App(width="medium")
 
 with app.setup:
@@ -19,7 +19,7 @@ with app.setup:
     from calibra.errors import classwise_ece
 
     from data_readers import batch_read_shot_data
-    from models.features import post_shot_features_full, post_shot_features_minimal
+    from models.features import post_shot_features_full, post_shot_features_minimal, post_shot_features_xg
     from models.data import prepare_data, post_shot_filter, DataSplitter, polars_to_pandas
     from models.training import ModelTrainer
 
@@ -112,65 +112,92 @@ def _():
 
 @app.cell
 def _():
-    xg_data = pl.scan_parquet("/output/predictions/20242025/pre_shot_1308.parquet")
     data = (
-        batch_read_shot_data("/output/shot_data/20242025/*.parquet")
+        batch_read_shot_data("/output/shot_data/20242025-clean/*.parquet")
         .pipe(prepare_data)
         .pipe(post_shot_filter)
-        .join(xg_data, on=["game_id", "period", "shot_id"], how='left', validate='1:1')
+        .rename({'sportlogiq_xg':'pre_shot'}) # use sportlogiq to avoid in-sample xG predictions
         .collect()
     )
 
     splitter_full = DataSplitter(data, post_shot_features_full, "goal", split_path="models/train_test_20242025.npz")
     splitter_min = DataSplitter(data, post_shot_features_minimal, "goal", split_path="models/train_test_20242025.npz")
+    splitter_xg = DataSplitter(data, post_shot_features_xg, "goal", split_path="models/train_test_20242025.npz")
+
 
     X_train_full, y_train_full, X_test_full, y_test_full, _ = splitter_full.get_split_data()
     X_train_min, y_train_min, X_test_min, y_test_min, _ = splitter_min.get_split_data()
+    X_train_xg, y_train_xg, X_test_xg, y_test_xg, _ = splitter_xg.get_split_data()
     return (
         X_test_full,
         X_test_min,
+        X_test_xg,
         X_train_full,
         X_train_min,
+        X_train_xg,
         y_test_full,
         y_test_min,
+        y_test_xg,
         y_train_full,
         y_train_min,
+        y_train_xg,
     )
 
 
 @app.cell
 def _():
-    with open("models/post_shot/post_shot_lightgbm_params.json", "r") as f:
+    with open("models/post_shot/post_shot_lightgbm_params_s8644.json", "r") as f:
         params_full = json.load(f)
 
     with open("models/post_shot_minimal/post_shot_minimal_lightgbm_params_s7160.json", "r") as f:
         params_min = json.load(f)
-    return params_full, params_min
+
+    with open("models/post_shot_xg/post_shot_xg_lightgbm_params_s625.json", "r") as f:
+        params_xg = json.load(f)
+    return params_full, params_min, params_xg
 
 
 @app.cell
 def _(
     X_test_full,
     X_test_min,
+    X_test_xg,
     X_train_full,
     X_train_min,
+    X_train_xg,
     params_full,
     params_min,
+    params_xg,
     y_test_full,
     y_test_min,
+    y_test_xg,
     y_train_full,
     y_train_min,
+    y_train_xg,
 ):
-    clf_full = ModelTrainer(X_train_full, y_train_full, 'lightgbm', 'WCE', loss_correct=True, seed=89, X_val=X_test_full, y_val=y_test_full, **params_full).train()
+    clf_full = ModelTrainer(X_train_full, y_train_full, 'lightgbm', 'WCE', loss_correct=True, seed=4424, X_val=X_test_full, y_val=y_test_full, **params_full).train()
 
-    clf_min = ModelTrainer(X_train_min, y_train_min, 'lightgbm', 'WCE', loss_correct=True, seed=89, X_val=X_test_min, y_val=y_test_min, **params_min).train()
-    return clf_full, clf_min
+    clf_min = ModelTrainer(X_train_min, y_train_min, 'lightgbm', 'WCE', loss_correct=True, seed=4424, X_val=X_test_min, y_val=y_test_min, **params_min).train()
+
+    clf_xg = ModelTrainer(X_train_xg, y_train_xg, 'lightgbm', 'WCE', loss_correct=True, seed=445324, X_val=X_test_xg, y_val=y_test_xg, **params_xg).train()
+    return clf_full, clf_min, clf_xg
 
 
 @app.cell
-def _(X_test_full, X_test_min, clf_full, clf_min, y_test_full, y_test_min):
+def _(
+    X_test_full,
+    X_test_min,
+    X_test_xg,
+    clf_full,
+    clf_min,
+    clf_xg,
+    y_test_full,
+    y_test_min,
+    y_test_xg,
+):
     pred_full = clf_full.predict_proba(polars_to_pandas(X_test_full))[:,1]
     pred_min = clf_min.predict_proba(polars_to_pandas(X_test_min))[:,1]
+    pred_xg = clf_xg.predict_proba(polars_to_pandas(X_test_xg))[:,1]
 
     feature_results = pl.from_dicts([
         {
@@ -179,9 +206,14 @@ def _(X_test_full, X_test_min, clf_full, clf_min, y_test_full, y_test_min):
             'ROC-AUC': roc_auc_score(y_test_full, pred_full)
         },
         {
-            'Feature Set': 'PreXG + Post-Shot',
+            'Feature Set': 'Minimal + Post-Shot',
             'PR-AUC': average_precision_score(y_test_min, pred_min),
             'ROC-AUC': roc_auc_score(y_test_min, pred_min)
+        },
+        {
+            'Feature Set': 'PreXG + Post-Shot',
+            'PR-AUC': average_precision_score(y_test_xg, pred_xg),
+            'ROC-AUC': roc_auc_score(y_test_xg, pred_xg)
         },
     ])
     return feature_results, pred_full
@@ -195,12 +227,14 @@ def _(feature_results):
             title="Post-Shot Feature Set Comparison"
         ).tab_source_note(
             "Scores calculated on validation set."
+        ).tab_source_note(
+            "Sportlogiq xG use for PreXG"
         )
         .fmt_number(columns=["PR-AUC", "ROC-AUC"], decimals=4)
     )
 
     features_table
-    # print(features_table.as_latex())
+    print(features_table.as_latex())
     return
 
 
