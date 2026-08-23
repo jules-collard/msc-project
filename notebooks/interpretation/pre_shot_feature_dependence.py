@@ -110,6 +110,12 @@ def _(custom_theme, features_dict, shap_values):
 
 
 @app.cell
+def _(shap_df):
+    plot_data = shap_df.with_columns(c('num_defenders_in_shadow_lane', 'goalie_in_shooting_lane').cast(pl.String))
+    return (plot_data,)
+
+
+@app.cell
 def _(shap_dependence_plot, shap_df):
     distance_plot = shap_dependence_plot(shap_df, "shooter_dist_to_goal")
     angle_plot = shap_dependence_plot(shap_df, "shooter_angle_to_goal")
@@ -151,9 +157,7 @@ def _(custom_theme, plot_data, shap_dependence_plot, shap_df):
 
 
 @app.cell
-def _(custom_theme, shap_dependence_plot, shap_df):
-    plot_data = shap_df.with_columns(c('num_defenders_in_shadow_lane', 'goalie_in_shooting_lane').cast(pl.String))
-
+def _(custom_theme, plot_data, shap_dependence_plot, shap_df):
     defender_lane_plot = (
         ggplot(plot_data, aes(x="num_defenders_in_shadow_lane", y="num_defenders_in_shadow_lane_shap", colour="shooter_dist_to_goal"))
         + p9.geom_hline(yintercept=0, linetype="dotted")
@@ -169,14 +173,14 @@ def _(custom_theme, shap_dependence_plot, shap_df):
         + p9.geom_hline(yintercept=0, linetype="dotted")
         + p9.geom_sina(alpha=0.1, random_state=54)
         + labs(x="Shot Type", y="SHAP", colour="Distance to Goal")
-        + p9.theme(axis_text_x=p9.element_text(rotation=45))
         + custom_theme
+        + p9.theme(axis_text_x=p9.element_text(rotation=-45))
     )
 
     defender_plots = (defender_lane_plot | pressure_plot) / shot_type_plot
-    defender_plots.save("plots/interpretation/defender_plots_shap.png", width=6, height=6, dpi=500)
+    # defender_plots.save("plots/interpretation/defender_plots_shap.png", width=6, height=6, dpi=500)
     defender_plots
-    return (plot_data,)
+    return
 
 
 if __name__ == "__main__":
