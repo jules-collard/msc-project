@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.23.14"
+__generated_with = "0.24.0"
 app = marimo.App(width="medium")
 
 
@@ -34,7 +34,7 @@ def _():
 
 @app.cell
 def _(DataSplitter, batch_read_shot_data, cs):
-    data = batch_read_shot_data("/output/shot_data/20242025/*.parquet")
+    data = batch_read_shot_data("/output/shot_data/20242025-clean/*.parquet")
 
     splitter = DataSplitter(data.collect(), cs.all().exclude('goal'), 'goal', split_path="models/train_test_20242025.npz")
     return (splitter,)
@@ -55,13 +55,14 @@ def _(aes, c, data_train, geom_vline, ggplot, labs, p9, theme_bw):
         + geom_vline(xintercept=0, linetype='dashed')
         # + geom_density(fill='lightblue', alpha=0.5)
         + p9.geom_histogram(binwidth=0.05, color='black', fill='lightgrey')
-        + theme_bw(base_size=10)
+        + theme_bw(base_size=12)
         + p9.xlim((-0.8, 0.8))
         + labs(x="Estimated Timing Error (seconds)", y="No. Shots",
               caption="2024-25 Training Set")
     )
 
-    timing_plot.save("plots/shot_detection/timing_error_distribution.svg")
+    # timing_plot.save("plots/shot_detection/timing_error_distribution.svg")
+    timing_plot
     return
 
 
@@ -80,12 +81,13 @@ def _(aes, c, data_train, geom_hline, geom_vline, ggplot, labs, p9, theme_bw):
         + p9.stat_density_2d(aes(fill='stat(level)'), geom='polygon', levels=10, alpha=0.8)
         + p9.geom_density_2d(levels=10, alpha=0.5)
         + p9.scale_fill_distiller(type='seq', palette='Greys', direction=1)
-        + theme_bw(base_size=10)
+        + theme_bw(base_size=12)
         + labs(x="Estimated X Coordinate Error (ft)", y="Estimated Y Coordinate Error (ft)", fill="Density", caption="2024-25 Training Set")
         + p9.theme(aspect_ratio=1)
     )
 
-    location_plot.save("plots/shot_detection/location_error_distribution.svg")
+    location_plot.save("plots/shot_detection/location_error_distribution.png", width=6, height=6, dpi=500)
+    location_plot
     return
 
 
