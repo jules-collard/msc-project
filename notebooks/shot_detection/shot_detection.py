@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.23.14"
+__generated_with = "0.24.0"
 app = marimo.App(width="medium")
 
 with app.setup:
@@ -23,7 +23,7 @@ with app.setup:
 @app.cell
 def _():
     game_id_mapping = (
-        pl.read_csv("mappings/NHL_20252026_game_smt_sportlogiq_id_map.csv")
+        pl.read_csv("mappings/NHL_20242025_20252026_game_smt_sportlogiq_id_map.csv")
         .with_columns(c('GameDate').str.strptime(pl.Date, format="%Y-%m-%d"))
     )
     return (game_id_mapping,)
@@ -53,14 +53,14 @@ def _(game_id_mapping, game_id_selector):
 
 @app.cell
 def _(SMT_ids, games, sportlogiq_ids):
-    events = batch_read_events([f"/data/sportlogiq/*/games/{id}/*_sapifullevents.json" for id in sportlogiq_ids])
+    events = batch_read_events([f"/data/sportlogiq*/*/games/{id}/*_sapifullevents.json" for id in sportlogiq_ids])
 
     puck_tracking = batch_read_puck_tracking(
-        [f"/data/smtoasis/*/games/{id}/*_puck_tracking_raw_measurements*.parquet" for id in SMT_ids],
+        [f"/data/smtoasis*/*/games/{id}/*_puck_tracking_raw_measurements*.parquet" for id in SMT_ids],
         mapping=games.lazy()
     )
 
-    player_info = batch_read_rosters([f"/data/sportlogiq/*/games/{id}/NHL_*_gameroster.json" for id in sportlogiq_ids])
+    player_info = batch_read_rosters([f"/data/sportlogiq*/*/games/{id}/NHL_*_gameroster.json" for id in sportlogiq_ids])
 
     post_shot_data = PostShotData(events, puck_tracking, player_info)
     return (post_shot_data,)
@@ -214,7 +214,6 @@ def _(game_time, sample, shot_end_time, shot_speed, shot_time, speed_time):
         acc_plot,
         angle_plot,
         angle_vel_plot,
-        custom_theme,
         goal_acc_plot,
         goal_speed_plot,
         speed_plot,
@@ -277,7 +276,7 @@ def _(sample, shot_logic):
 
 
 @app.cell(hide_code=True)
-def _(custom_theme, shot_logic):
+def _(shot_logic):
     # 1. Define the NHL Net Outline (in feet)
     # The path goes: Bottom-Left Post -> Top-Left -> Top-Right -> Bottom-Right
     net_outline = pl.DataFrame({
@@ -307,56 +306,58 @@ def _(custom_theme, shot_logic):
         )   
         # Shots
         + p9.geom_point(
-            aes(x='goalline_y', y='goalline_z'), size=5,
+            aes(x='goalline_y', y='goalline_z'), size=6,
             data=shot_logic,
         )
         # Feature Illustrations
-        + p9.geom_segment(
-            # Distance to Nearest Top Corner
-            aes(x='goalline_y', xend='nearest_post_y', y='goalline_z', yend=4),
-            data=shot_logic,
-            linetype="dotted"
-        ) + p9.geom_segment(
-            # Distance to Nearest Post
-            aes(x='goalline_y', xend='nearest_post_y', y='goalline_z', yend='goalline_z'),
-            data=shot_logic,
-            linetype="dotted"
-        )+ p9.geom_segment(
-            # Distance to Center
-            aes(x='goalline_y', xend=0, y='goalline_z', yend=2),
-            data=shot_logic,
-            linetype="dotted"
-        ) + p9.geom_text(
+        # + p9.geom_segment(
+        #     # Distance to Nearest Top Corner
+        #     aes(x='goalline_y', xend='nearest_post_y', y='goalline_z', yend=4),
+        #     data=shot_logic,
+        #     linetype="dotted"
+        # ) + p9.geom_segment(
+        #     # Distance to Nearest Post
+        #     aes(x='goalline_y', xend='nearest_post_y', y='goalline_z', yend='goalline_z'),
+        #     data=shot_logic,
+        #     linetype="dotted"
+        # )+ p9.geom_segment(
+        #     # Distance to Center
+        #     aes(x='goalline_y', xend=0, y='goalline_z', yend=2),
+        #     data=shot_logic,
+        #     linetype="dotted"
+        # )
+        + p9.geom_text(
             aes(x='goalline_y', y='goalline_z', label='shot_speed'),
             data=shot_logic,
             nudge_y=-0.5,
             size=8,
             color='blue',
             format_string='{:.1f}ft/s'
-        ) + p9.geom_text(
-            aes(x='nearest_post_y', y=4, label='dist_to_top_corner'),
-            data=shot_logic,
-            nudge_y=0.2,
-            size=8,
-            color='blue',
-            format_string='{:.1f}ft'
-        ) + p9.geom_text(
-            aes(x='nearest_post_y', y='goalline_z', label='dist_to_post'),
-            data=shot_logic,
-            nudge_x=0.4,
-            size=8,
-            color='blue',
-            format_string='{:.1f}ft'
-        ) + p9.geom_text(
-            aes(x=0, y=2, label='dist_to_center'),
-            data=shot_logic,
-            nudge_y=0.2,
-            size=8,
-            color='blue',
-            format_string='{:.1f}ft'
         )
-        + custom_theme
-        + p9.theme(title=p9.element_blank(), axis_title=p9.element_blank())
+        # + p9.geom_text(
+        #     aes(x='nearest_post_y', y=4, label='dist_to_top_corner'),
+        #     data=shot_logic,
+        #     nudge_y=0.2,
+        #     size=8,
+        #     color='blue',
+        #     format_string='{:.1f}ft'
+        # ) + p9.geom_text(
+        #     aes(x='nearest_post_y', y='goalline_z', label='dist_to_post'),
+        #     data=shot_logic,
+        #     nudge_x=0.4,
+        #     size=8,
+        #     color='blue',
+        #     format_string='{:.1f}ft'
+        # ) + p9.geom_text(
+        #     aes(x=0, y=2, label='dist_to_center'),
+        #     data=shot_logic,
+        #     nudge_y=0.2,
+        #     size=8,
+        #     color='blue',
+        #     format_string='{:.1f}ft'
+        # )
+        + p9.theme_bw(base_size=12)
+        # + p9.theme(title=p9.element_blank(), axis_title=p9.element_blank())
     )
     return (shot_plot,)
 
