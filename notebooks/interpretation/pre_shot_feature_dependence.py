@@ -83,21 +83,26 @@ def _():
 
 
 @app.cell
-def _(features_dict, shap_values):
+def _():
+    custom_theme = theme_bw(base_size=10) + p9.theme(legend_title=p9.element_text(angle=90, size=8), legend_title_position="right", legend_key_width=10, legend_text=p9.element_text(size=6))
+    return (custom_theme,)
+
+
+@app.cell
+def _(custom_theme, features_dict, shap_values):
     def shap_dependence_plot(df: pl.DataFrame, variable: str):
         interaction_col = df.columns[shap.utils.potential_interactions(shap_values[:,variable], shap_values)[0]]
-    
+
         aes_y = f"{variable}_shap"
         x_label = features_dict[variable]
         colour_label = features_dict[interaction_col]
-    
+
         plot = (
             ggplot(df, aes(x=variable, y=aes_y, colour=interaction_col))
             + p9.geom_hline(yintercept=0, linetype="dotted")
             + geom_point(alpha=0.05)
-            + theme_bw(base_size=10)
             + labs(x=x_label, y="SHAP", colour=colour_label)
-            + p9.theme(legend_title=p9.element_text(angle=90, size=8), legend_title_position="right", legend_key_width=10, legend_text=p9.element_text(size=8))
+            + custom_theme
         )
         return plot
 
@@ -111,53 +116,67 @@ def _(shap_dependence_plot, shap_df):
     visible_angle_plot = shap_dependence_plot(shap_df, "visible_angle")
     goal_speed_plot = shap_dependence_plot(shap_df, "shooter_goal_speed")
 
-    (distance_plot | angle_plot) / (visible_angle_plot | goal_speed_plot)
+    shooter_plots = (distance_plot | angle_plot) / (visible_angle_plot | goal_speed_plot)
+
+    # shooter_plots.save("plots/interpretation/shooter_plots_shap.png", width=6, height=6, dpi=500)
+    shooter_plots
     return
 
 
 @app.cell
-def _(shap_dependence_plot, shap_df):
-    goalie_distance_plot = shap_dependence_plot(shap_df, "goalie_dist_to_goal")
+def _(custom_theme, plot_data, shap_dependence_plot, shap_df):
+    goalie_distance_plot = shap_dependence_plot(shap_df, "goalie_dist_to_goal") + p9.xlim(0, 15)
     goalie_lateral_speed_plot = shap_dependence_plot(shap_df, "goalie_lateral_speed")
     goalie_angle_plot = shap_dependence_plot(shap_df, "goalie_angle_to_shooter")
-    pressure_plot = shap_dependence_plot(shap_df, "total_pressure")
 
-    (goalie_angle_plot) / (goalie_lateral_speed_plot | pressure_plot)
+    goalie_lane_plot_data = (
+        plot_data
+        .with_columns(
+            c('goalie_in_shooting_lane').cast(pl.String).fill_null('Missing').str.to_titlecase()
+        )
+    )
+
+    goalie_lane_plot = (
+        ggplot(goalie_lane_plot_data, aes(x="goalie_in_shooting_lane", y="goalie_in_shooting_lane_shap", colour="shooter_dist_to_goal"))
+        + p9.geom_hline(yintercept=0, linetype="dotted")
+        + p9.geom_sina(alpha=0.1, random_state=54)
+        + labs(x="Goalie in Shooting Lane", y="SHAP", colour="Shooter Distance to Goal")
+        + custom_theme
+    )
+
+    goalie_plots = (goalie_angle_plot | goalie_distance_plot) / (goalie_lateral_speed_plot | goalie_lane_plot)
+    goalie_plots.save("plots/interpretation/goalie_plots_shap.png", width=6, height=6, dpi=500)
+    goalie_plots
     return
 
 
 @app.cell
-def _(shap_df):
+def _(custom_theme, shap_dependence_plot, shap_df):
     plot_data = shap_df.with_columns(c('num_defenders_in_shadow_lane', 'goalie_in_shooting_lane').cast(pl.String))
 
     defender_lane_plot = (
         ggplot(plot_data, aes(x="num_defenders_in_shadow_lane", y="num_defenders_in_shadow_lane_shap", colour="shooter_dist_to_goal"))
         + p9.geom_hline(yintercept=0, linetype="dotted")
-        + p9.geom_sina(alpha=0.1, show_legend=False)
-        + theme_bw(base_size=10)
-        + labs(x="Defenders in Shadow Lane", y="SHAP Value (log-odds)", colour="Distance to Goal")
+        + p9.geom_sina(alpha=0.1, random_state=54)
+        + labs(x="Defenders in Shadow Lane", y="SHAP", colour="Distance to Goal")
+        + custom_theme
     )
 
-    goalie_lane_plot = (
-        ggplot(plot_data, aes(x="goalie_in_shooting_lane", y="goalie_in_shooting_lane_shap", colour="shooter_dist_to_goal"))
-        + p9.geom_hline(yintercept=0, linetype="dotted")
-        + p9.geom_sina(alpha=0.1, show_legend=False)
-        + theme_bw(base_size=10)
-        + labs(x="Goalie in Shadow Lane", y="SHAP Value (log-odds)")
-    )
+    pressure_plot = shap_dependence_plot(shap_df, "total_pressure")
 
     shot_type_plot = (
         ggplot(plot_data, aes(x="shot_type", y="shot_type_shap", colour="shooter_dist_to_goal"))
         + p9.geom_hline(yintercept=0, linetype="dotted")
-        + p9.geom_sina(alpha=0.1)
-        + theme_bw(base_size=10)
-        + labs(x="Shot Type", y="SHAP Value (log-odds)", colour="Distance to Goal")
+        + p9.geom_sina(alpha=0.1, random_state=54)
+        + labs(x="Shot Type", y="SHAP", colour="Distance to Goal")
         + p9.theme(axis_text_x=p9.element_text(rotation=45))
-        + p9.theme(legend_title=p9.element_text(angle=90, size=8), legend_title_position="left", legend_key_width=10, legend_text=p9.element_text(size=8))
+        + custom_theme
     )
 
-    (defender_lane_plot | goalie_lane_plot) / shot_type_plot
-    return
+    defender_plots = (defender_lane_plot | pressure_plot) / shot_type_plot
+    defender_plots.save("plots/interpretation/defender_plots_shap.png", width=6, height=6, dpi=500)
+    defender_plots
+    return (plot_data,)
 
 
 if __name__ == "__main__":
