@@ -121,7 +121,9 @@ def _(shap_dependence_plot, shap_df):
     center_plot = shap_dependence_plot(shap_df, "dist_to_center", limits=(0, 10))
     speed_plot = shap_dependence_plot(shap_df, "shot_speed")
 
-    (corner_plot | post_plot) / (center_plot | speed_plot)
+    full_plot = (corner_plot | post_plot) / (center_plot | speed_plot)
+    full_plot.save("plots/interpretation/post_shot_shap.png", width=6, height=6, dpi=500)
+    full_plot
     return
 
 
