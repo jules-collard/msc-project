@@ -108,7 +108,7 @@ class PostShotData:
                 on='shot_id',
                 how='left'
             ).join( # Add shooter handedness
-                self.player_info.select(c('SportlogiqPlayerID'), c('handedness')).rename({'handedness': 'shooter_handedness'}),
+                self.player_info.select(c('SportlogiqPlayerID'), c('handedness'), c('position')).rename({'handedness': 'shooter_handedness'}),
                 left_on='player_reference_id',
                 right_on='SportlogiqPlayerID',
                 how='left',
