@@ -20,7 +20,7 @@ def _():
 
 @app.cell
 def _(batch_read_shot_data, c, pl):
-    shot_data = batch_read_shot_data("/output/shot_data/20252026-clean/*.parquet")
+    shot_data = batch_read_shot_data("/output/shot_data/20252026/*.parquet")
     pre_shot_xg = pl.scan_parquet("/output/predictions/20252026/post_shot_2108.parquet")
     post_shot_xg = pl.scan_parquet("/output/predictions/20252026/pre_shot_2008.parquet")
 
@@ -69,7 +69,7 @@ def _(
 def _(c, data, pl):
     shooter_metrics = (
         data
-        .group_by("player_reference_id", "player_first_name", "player_last_name")
+        .group_by("player_reference_id", "player_first_name", "player_last_name", "position")
         .agg(
             c('pre_shot').sum().alias('pre_shot_xg'),
             c('post_shot').sum().alias('post_shot_xg'),
@@ -109,20 +109,29 @@ def _(c, data, pl):
 
 @app.cell
 def _(c, shooter_metrics):
-    sga_table = (
+    forwards_table = (
         shooter_metrics
+        .filter(c('position') != 'D')
         .select(c('name', 'shots', 'pre_shot_xg', 'post_shot_xg', 'shooting_goals_added'))
         .sort(c('shooting_goals_added'), descending=True)
         .with_row_index("rank", offset=1)
     )
-    return (sga_table,)
+
+    defensemen_table = (
+        shooter_metrics
+        .filter(c('position') == 'D')
+        .select(c('name', 'shots', 'pre_shot_xg', 'post_shot_xg', 'shooting_goals_added'))
+        .sort(c('shooting_goals_added'), descending=True)
+        .with_row_index("rank", offset=1)
+    )
+    return defensemen_table, forwards_table
 
 
 @app.cell
-def _(GT, cs, sga_table):
+def _(GT, cs, forwards_table):
     top_10_shooters = (
         GT(
-            sga_table
+            forwards_table
             .head(10)
         ).cols_label(rank="Rank", name="Player Name", shots="Shot Attempts", pre_shot_xg="PreXG", post_shot_xg="PostXG", shooting_goals_added="SGA")
         .fmt_number(cs.numeric().exclude('rank', 'shots'))
@@ -134,12 +143,11 @@ def _(GT, cs, sga_table):
 
 
 @app.cell
-def _(GT, c, cs, sga_table):
+def _(GT, cs, forwards_table):
     bottom_10_shooters = (
         GT(
-            sga_table
-            .sort(c('rank'), descending=True)
-            .head(10)
+            forwards_table
+            .tail(10)
         ).cols_label(rank="Rank", name="Player Name", shots="Shot Attempts", pre_shot_xg="PreXG", post_shot_xg="PostXG", shooting_goals_added="SGA")
         .fmt_number(cs.numeric().exclude('rank', 'shots'))
     )
@@ -150,10 +158,41 @@ def _(GT, c, cs, sga_table):
 
 
 @app.cell
+def _(GT, cs, defensemen_table):
+    top_5_defensemen = (
+        GT(
+            defensemen_table
+            .head(5)
+        ).cols_label(rank="Rank", name="Player Name", shots="Shot Attempts", pre_shot_xg="PreXG", post_shot_xg="PostXG", shooting_goals_added="SGA")
+        .fmt_number(cs.numeric().exclude('rank', 'shots'))
+    )
+
+    top_5_defensemen
+    # print(top_5_defensemen.as_latex())
+    return
+
+
+@app.cell
+def _(GT, cs, defensemen_table):
+    bottom_5_defensemen = (
+        GT(
+            defensemen_table
+            .tail(5)
+        ).cols_label(rank="Rank", name="Player Name", shots="Shot Attempts", pre_shot_xg="PreXG", post_shot_xg="PostXG", shooting_goals_added="SGA")
+        .fmt_number(cs.numeric().exclude('rank', 'shots'))
+    )
+
+    bottom_5_defensemen
+    print(bottom_5_defensemen.as_latex())
+    return
+
+
+@app.cell
 def _(GT, cs, goalie_metrics):
     top_10_goalies = (
         GT(
-            goalie_metrics.select('rank', 'opposing_goaltender_name', 'pre_gsax', 'post_gsax', 'diff')
+            goalie_metrics
+            .select('rank', 'opposing_goaltender_name', 'pre_gsax', 'post_gsax', 'diff')
             .head(10)
         ).cols_label(rank="Rank", opposing_goaltender_name="Goaltender", pre_gsax="Pre-Shot GSAX", post_gsax="Post-Shot GSAX", diff="Difference")
         .fmt_number(cs.numeric().exclude('rank'))
@@ -171,9 +210,8 @@ def _(GT, cs, goalie_metrics):
     bottom_10_goalies = (
         GT(
             goalie_metrics
-            .sort('post_gsax')
             .select('rank', 'opposing_goaltender_name', 'pre_gsax', 'post_gsax', 'diff')
-            .head(10)
+            .tail(10)
         ).cols_label(rank="Rank", opposing_goaltender_name="Goaltender", pre_gsax="Pre-Shot GSAX", post_gsax="Post-Shot GSAX", diff="Difference")
         .fmt_number(cs.numeric().exclude('rank'))
         .fmt_number('diff', force_sign=True)
@@ -181,7 +219,7 @@ def _(GT, cs, goalie_metrics):
     )
 
     bottom_10_goalies
-    print(bottom_10_goalies.as_latex())
+    # print(bottom_10_goalies.as_latex())
     return
 
 
