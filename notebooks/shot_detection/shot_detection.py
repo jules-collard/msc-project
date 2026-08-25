@@ -357,7 +357,7 @@ def _(shot_logic):
         #     format_string='{:.1f}ft'
         # )
         + p9.theme_bw(base_size=12)
-        # + p9.theme(title=p9.element_blank(), axis_title=p9.element_blank())
+        + p9.theme(title=p9.element_blank(), axis_title=p9.element_blank())
     )
     return (shot_plot,)
 
