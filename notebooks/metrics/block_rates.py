@@ -30,7 +30,7 @@ def _(shots):
     season_pairs = (
         shots
         .with_columns(
-            pl.when(c('position') == 'D').then(pl.lit('Defensemen')).otherwise(pl.lit('Forwards')).alias('position_group')
+            pl.when(c('position') == 'D').then(pl.lit('Defenders')).otherwise(pl.lit('Forwards')).alias('position_group')
         )
         .group_by("player_reference_id", "position_group", "season")
         .agg(
@@ -68,7 +68,7 @@ def _(r_squared, season_pairs):
         + p9.scale_y_continuous(labels=percent_format())
     )
 
-    corr_plot.save("plots/metrics/blocked_shot_rates.svg")
+    # corr_plot.save("plots/metrics/blocked_shot_rates.svg")
     corr_plot
     return
 
