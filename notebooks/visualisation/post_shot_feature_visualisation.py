@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.23.14"
+__generated_with = "0.24.0"
 app = marimo.App(width="medium")
 
 
@@ -36,7 +36,7 @@ def _():
 @app.cell
 def _(batch_read_shot_data, c, distance_to_point_2d, pl):
     model_data = (
-        batch_read_shot_data("/output/shot_data/*.parquet")
+        batch_read_shot_data("/output/shot_data/20242025/*.parquet")
         .drop_nulls(c('shot_speed')) # Only keep shots with valid speed (i.e. shots that were detected)
         .filter(
             c('shot_x').is_between(25, 89, closed="left"), # Only o-zone shots
@@ -56,7 +56,7 @@ def _(batch_read_shot_data, c, distance_to_point_2d, pl):
 
 @app.cell
 def _(c, model_data):
-    caption = "Unblocked O-Zone Shots Oct.-Dec. 2025"
+    caption = "Unblocked O-Zone Shots 2024-2025"
     mean_success_rate = model_data.filter(c('outcome') == 'successful').select(c('goal').mean()).item()
     return caption, mean_success_rate
 
@@ -189,7 +189,7 @@ def _(
     pl,
     theme_bw,
 ):
-    (
+    norm_plot = (
         model_data
         .with_columns(
             ((pl.col('goalline_y_norm') / grid_size).floor() * grid_size + (grid_size / 2)).alias('grid_y'),
@@ -219,7 +219,6 @@ def _(
         + p9.annotate("text", label="Glove Side →", x=-1.5, y=7.2,
                       size=10, color="black")
         + p9.coord_fixed(ratio=1, ylim=(0, 6))
-        + p9.scale_x_reverse()
         + p9.scale_fill_cmap(cmap_name="bwr", limits=(-0.15, 0.15), labels=percent_format(style_positive="+"))
         + p9.scale_size_continuous()
         + theme_bw(base_size=10)
@@ -228,8 +227,11 @@ def _(
                subtitle="← Blocker Side       Glove Side →",
               x="Horizontal Location (ft)", y="Vertical Location (ft)",
               fill="Relative \n Success Rate", size="# Shots",
-              caption=f"{caption} | Relative to League Avg. {mean_success_rate:.1%}")
+              caption=f"{caption} | Relative to On Target League Avg. {mean_success_rate:.1%}")
     )
+
+    # norm_plot.save("plots/shot_detection/net_success_rates.svg")
+    norm_plot
     return
 
 
