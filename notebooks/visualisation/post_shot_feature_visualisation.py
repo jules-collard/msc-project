@@ -224,6 +224,7 @@ def _(
         + p9.coord_fixed(ratio=1, ylim=(0, 6))
         + p9.scale_fill_cmap(cmap_name="bwr", limits=(-0.15, 0.15), labels=percent_format(style_positive="+"))
         + p9.scale_size_continuous()
+        + p9.scale_x_reverse()
         + theme_bw(base_size=10)
         + p9.theme(plot_subtitle=p9.element_text(ha="center"))
         + labs(title="Relative Shot Success Rate by Normalised Goal Location",
