@@ -28,7 +28,7 @@ def _():
 
 @app.cell
 def _():
-    shot_data = batch_read_shot_data("/output/shot_data/20252026-clean/*.parquet")
+    shot_data = batch_read_shot_data("/output/shot_data/20252026/*.parquet")
     predictions = pl.scan_parquet("/output/predictions/20252026/post_shot_2108.parquet")
     return predictions, shot_data
 
@@ -71,7 +71,7 @@ def _(data, shap_values):
 
 @app.cell
 def _():
-    situation_features = [
+    shot_origin = [
         "shot_x",
         "shot_y",
         "shooter_dist_to_goal",
@@ -120,8 +120,8 @@ def _():
         goalie_features,
         shooter_movement,
         shot_execution,
+        shot_origin,
         shot_type,
-        situation_features,
     )
 
 
@@ -132,8 +132,8 @@ def _(
     goalie_features,
     shooter_movement,
     shot_execution,
+    shot_origin,
     shot_type,
-    situation_features,
 ):
     explanations = (
         full_df
@@ -142,12 +142,12 @@ def _(
         .with_columns(
             pl.sum_horizontal(shot_type).alias('Shot Type'),
             pl.sum_horizontal(shot_execution).alias('Shot Execution'),
-            Situation=pl.sum_horizontal(situation_features),
-            Movement=pl.sum_horizontal(shooter_movement),
-            Defenders=pl.sum_horizontal(defender_features),
-            Goaltender=pl.sum_horizontal(goalie_features),
+            pl.sum_horizontal(shot_origin).alias('Shot Origin'),
+            pl.sum_horizontal(shooter_movement).alias('Shooter Movement'),
+            pl.sum_horizontal(defender_features).alias('Defender Positioning'),
+            pl.sum_horizontal(goalie_features).alias('Goalie Positioning'),
         ).unpivot(
-            on=["Situation", "Movement", "Shot Type", "Defenders", "Goaltender", "Shot Execution"],
+            on=["Shot Origin", "Shooter Movement", "Shot Type", "Defender Positioning", "Goalie Positioning", "Shot Execution"],
             index=['game_id', 'period', 'shot_id', 'player_reference_id', 'player_first_name', 'player_last_name', 'sportlogiq_xg', 'post_shot', 'base_value'],
             variable_name="source",
             value_name="shap"
@@ -199,6 +199,12 @@ def _(game_id_selector, local_explanation_plot, shot_id_selector):
         mo.hstack([game_id_selector, shot_id_selector], justify="start"),
         local_explanation_plot
     ])
+    return
+
+
+@app.cell
+def _():
+    # local_explanation_plot.save("plots/interpretation/local_example.svg")
     return
 
 
