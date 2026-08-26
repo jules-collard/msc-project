@@ -339,16 +339,13 @@ def _(c, data, pl):
         .agg(
             c('pre_shot').sum().alias('pre_shot_xg'),
             c('post_shot').sum().alias('post_shot_xg'),
-            (c('goal') - c('pre_shot')).sum().alias('pre_gsax'),
-            (c('goal') - c('post_shot')).sum().alias('post_gsax'),
+            c('goal').sum().alias('goals_scored'),
             (c('post_shot') - c('pre_shot')).sum().alias('shooting_goals_added'),
             pl.len().alias('shots')
-        ).filter(c('shots') >= 50)
-        .with_columns(
-            sga_per_shot = c('shooting_goals_added') / c('shots')
-        ).pivot(
+        ).filter(c('shots') >= 150)
+        .pivot(
             on="season",
-            values="sga_per_shot",
+            values="shooting_goals_added",
             index=["player_reference_id", "position_group"]
         ).drop_nulls()
     )
@@ -363,14 +360,15 @@ def _(aes, geom_point, ggplot, labs, p9, pl, season_pairs, theme_bw):
         ggplot(season_pairs, aes(x="20242025", y="20252026", colour="position_group"))
         + geom_point()
         + p9.geom_smooth(method="lm", se=False, colour="black")
-        + p9.geom_label(label=f"R^2={r_squared:.2f}", x=-0.02, y=0.02, colour="black")
+        + p9.geom_label(label=f"R^2={r_squared:.2f}", x=-2.5, y=5, colour="black")
         + theme_bw(base_size=12)
-        + labs(x="2024-2025", y="2025-2026", colour="Position")
+        + labs(x="2024-2025 SGA", y="2025-2026 SGA", colour="Position", caption="min. 150 Shot Attempts")
         # + p9.coord_fixed(xlim=(0.08,0.52), ylim=(0.08,0.52))
         # + p9.scale_x_continuous(labels=percent_format())
         # + p9.scale_y_continuous(labels=percent_format())
     )
 
+    # corr_plot.save("plots/metrics/sga_correlations.svg")
     corr_plot
     return
 

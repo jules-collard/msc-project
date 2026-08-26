@@ -62,13 +62,13 @@ def _(r_squared, season_pairs):
         + geom_smooth(method="lm", se=False, colour="black")
         + p9.geom_label(label=f"R^2={r_squared:.2f}", x=0.2, y=0.45, colour="black")
         + theme_bw(base_size=12)
-        + labs(x="2024-2025", y="2025-2026", colour="Position")
+        + labs(x="2024-2025 Blocked Shot Rate", y="2025-2026 Blocked Shot Rate", colour="Position", caption="min. 50 Shot Attempts")
         + p9.coord_fixed(xlim=(0.08,0.52), ylim=(0.08,0.52))
         + p9.scale_x_continuous(labels=percent_format())
         + p9.scale_y_continuous(labels=percent_format())
     )
 
-    # corr_plot.save("plots/metrics/blocked_shot_rates.svg")
+    corr_plot.save("plots/metrics/blocked_shot_rates.svg")
     corr_plot
     return
 
