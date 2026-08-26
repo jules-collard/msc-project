@@ -11,21 +11,57 @@ def _():
     from polars import col as c
     from polars import selectors as cs
     from great_tables import GT
+    import plotnine as p9
+    from plotnine import ggplot, aes, geom_point, theme_bw, labs
+    from mizani.formatters import percent_format
 
     from data_readers import batch_read_shot_data
     from models.data import prepare_data
 
-    return GT, batch_read_shot_data, c, cs, pl, prepare_data
+    return (
+        GT,
+        aes,
+        batch_read_shot_data,
+        c,
+        cs,
+        geom_point,
+        ggplot,
+        labs,
+        p9,
+        pl,
+        prepare_data,
+        theme_bw,
+    )
 
 
 @app.cell
-def _(batch_read_shot_data, c, pl):
-    shot_data = batch_read_shot_data("/output/shot_data/20252026/*.parquet")
-    pre_shot_xg = pl.scan_parquet("/output/predictions/20252026/post_shot_2108.parquet")
-    post_shot_xg = pl.scan_parquet("/output/predictions/20252026/pre_shot_2008.parquet")
+def _(c, pl):
+    reg_season_game_ids = (
+        pl.scan_csv("mappings/NHL_20242025_20252026_game_smt_sportlogiq_id_map.csv")
+        .filter(c('Stage') == 'regular')
+        .select(c('SportlogiqGameID').cast(pl.String))
+        .collect()
+        .to_series()
+    )
+    return (reg_season_game_ids,)
+
+
+@app.cell
+def _(batch_read_shot_data, c, pl, reg_season_game_ids):
+    shot_data_2425 = batch_read_shot_data("/output/shot_data/20242025/*.parquet").with_columns(season=pl.lit('20242025'))
+    shot_data_2526 = batch_read_shot_data("/output/shot_data/20252026/*.parquet").with_columns(season=pl.lit('20252026'))
+
+    shot_data = pl.concat([shot_data_2425, shot_data_2526], how='vertical').filter(c('game_id').is_in(reg_season_game_ids.implode()))
+    return (shot_data,)
+
+
+@app.cell
+def _(c, pl):
+    pre_shot_xg = pl.scan_parquet("/output/predictions/*/pre_shot_2008.parquet")
+    post_shot_xg = pl.scan_parquet("/output/predictions/*/post_shot_2108.parquet")
 
     player_mappings = pl.scan_csv("mappings/NHL_20242025_20252026_player_sportlogiq_id_map.csv").with_columns(c('SportlogiqPlayerID').cast(pl.String)).drop('EntityOfficialID')
-    return player_mappings, post_shot_xg, pre_shot_xg, shot_data
+    return player_mappings, post_shot_xg, pre_shot_xg
 
 
 @app.cell
@@ -69,6 +105,7 @@ def _(
 def _(c, data, pl):
     shooter_metrics = (
         data
+        .filter(c('season') == '20252026')
         .group_by("player_reference_id", "player_first_name", "player_last_name", "position")
         .agg(
             c('pre_shot').sum().alias('pre_shot_xg'),
@@ -90,6 +127,7 @@ def _(c, data, pl):
 def _(c, data, pl):
     goalie_metrics = (
         data
+        .filter(c('season') == '20252026')
         .group_by("opposing_team_goalie_on_ice_ref", "opposing_goaltender_name")
         .agg(
             c('pre_shot').sum().alias('pre_shot_xg'),
@@ -183,7 +221,7 @@ def _(GT, cs, defensemen_table):
     )
 
     bottom_5_defensemen
-    print(bottom_5_defensemen.as_latex())
+    # print(bottom_5_defensemen.as_latex())
     return
 
 
@@ -225,44 +263,115 @@ def _(GT, cs, goalie_metrics):
 
 @app.cell
 def _(c, data):
-    (
+    player_data = (
         data
-        .group_by("opposing_team_goalie_on_ice_ref")
-        .agg(
-            c('post_shot').sum().alias('post_shot_xg'),
-            c('goal').sum().alias('goals_against')
-        ).filter(c('post_shot_xg') >= 30)
-        .with_columns(
-            multiplier = c('post_shot_xg') / c('goals_against')
-        ).select(
-            c('multiplier').mean().alias('mean'),
-            c('multiplier').var().alias('variance')
+        .filter(
+            c('season') == '20252026',
+            c('player_first_name') == 'Connor',
+            c('player_last_name') == 'Bedard',
+            c('type').str.contains('blocked').not_(),
+            c('goalline_y').is_not_null(),
+            c('goalline_z').is_not_null()
         ).with_columns(
-            beta = c('mean') / c('variance'),
-            alpha = c('mean').pow(2) / c('variance')
+            sga=c('post_shot') - c('pre_shot')
         )
+        # .select(
+        #     c('pre_shot').sum().alias('pre_shot_xg'),
+        #     c('post_shot').sum().alias('post_shot_xg'),
+        #     (c('goal') - c('pre_shot')).sum().alias('pre_gsax'),
+        #     (c('goal') - c('post_shot')).sum().alias('post_gsax'),
+        #     (c('post_shot') - c('pre_shot')).sum().alias('shooting_goals_added'),
+        #     pl.len().alias('shots')
+        # )
     )
+
+    sga = player_data.select(c('sga').sum()).item()
+    return player_data, sga
+
+
+@app.cell
+def _(aes, geom_point, ggplot, labs, p9, pl, player_data, sga, theme_bw):
+    net_outline = pl.DataFrame({
+        'y': [-3, -3, 3, 3],
+        'z': [0, 4, 4, 0]
+    })
+
+    player_plot = (
+        ggplot()
+        + p9.coord_fixed(ratio=1, ylim=(0, 6), xlim=(-5, 5))
+        # Net
+        + p9.geom_rect(
+            aes(xmin=-3, xmax=3, ymin=0, ymax=4), fill='lightgrey',
+        )
+        # Ice Surface
+        + p9.geom_segment(
+            aes(x=-10, xend=10, y=0, yend=0), 
+            color="lightblue", size=2
+        ) 
+        # Posts
+        + p9.geom_path(
+            aes(x='y', y='z'), 
+            data=net_outline, 
+            color="red", size=2, lineend="round"
+        ) + geom_point(
+            aes(x='goalline_y_norm', y='goalline_z', size='pre_shot', fill='sga'), data=player_data
+        ) + p9.geom_label(aes(x=-4, y=5.5), data=None, label=f"SGA: {sga:.2f}")
+        + p9.scale_fill_gradient2(low="Red", mid="White", high="Green")
+        + theme_bw(base_size=12)
+        + labs(x="", y="", fill="Shooting Goals Added", size="Pre-Shot xG",
+               subtitle="← Blocker Side       Glove Side →",
+               caption="2025-26 Reg. Season Unblocked Shots",)
+        + p9.theme(legend_title=p9.element_text(angle=-90), legend_title_position="right", legend_key_width=12,
+                   plot_subtitle=p9.element_text(ha="center"), axis_text=p9.element_blank(), axis_ticks=p9.element_blank())
+    )
+
+    # player_plot.save("plots/metrics/bedard_shot_chart.svg")
+    player_plot
     return
 
 
 @app.cell
-def _():
-    alpha_0 = 110
-    beta_0 = 110
-    return alpha_0, beta_0
+def _(c, data, pl):
+    season_pairs = (
+        data
+        .with_columns(pl.when(c('position') == 'D').then(pl.lit('Defensemen')).otherwise(pl.lit('Forwards')).alias('position_group'))
+        .group_by("season", "player_reference_id", "position_group")
+        .agg(
+            c('pre_shot').sum().alias('pre_shot_xg'),
+            c('post_shot').sum().alias('post_shot_xg'),
+            (c('goal') - c('pre_shot')).sum().alias('pre_gsax'),
+            (c('goal') - c('post_shot')).sum().alias('post_gsax'),
+            (c('post_shot') - c('pre_shot')).sum().alias('shooting_goals_added'),
+            pl.len().alias('shots')
+        ).filter(c('shots') >= 50)
+        .with_columns(
+            sga_per_shot = c('shooting_goals_added') / c('shots')
+        ).pivot(
+            on="season",
+            values="sga_per_shot",
+            index=["player_reference_id", "position_group"]
+        ).drop_nulls()
+    )
+    return (season_pairs,)
 
 
 @app.cell
-def _(alpha_0, beta_0, c, goalie_metrics):
-    (
-        goalie_metrics
-        .with_columns(
-            alpha_post = alpha_0 + c('goals_against'),
-            beta_post = beta_0 + c('post_shot_xg')
-        ).with_columns(
-            skill_rating = c('beta_post') / c('alpha_post')
-        )
+def _(aes, geom_point, ggplot, labs, p9, pl, season_pairs, theme_bw):
+    r_squared = season_pairs.select(pl.corr("20242025", "20252026").pow(2)).item()
+
+    corr_plot = (
+        ggplot(season_pairs, aes(x="20242025", y="20252026", colour="position_group"))
+        + geom_point()
+        + p9.geom_smooth(method="lm", se=False, colour="black")
+        + p9.geom_label(label=f"R^2={r_squared:.2f}", x=-0.02, y=0.02, colour="black")
+        + theme_bw(base_size=12)
+        + labs(x="2024-2025", y="2025-2026", colour="Position")
+        # + p9.coord_fixed(xlim=(0.08,0.52), ylim=(0.08,0.52))
+        # + p9.scale_x_continuous(labels=percent_format())
+        # + p9.scale_y_continuous(labels=percent_format())
     )
+
+    corr_plot
     return
 
 
