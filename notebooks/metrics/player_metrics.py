@@ -298,7 +298,7 @@ def _(aes, geom_point, ggplot, labs, p9, pl, player_data, sga, theme_bw):
 
     player_plot = (
         ggplot()
-        + p9.coord_fixed(ratio=1, ylim=(0, 6), xlim=(-5, 5))
+        + p9.coord_fixed(ratio=1, ylim=(0, 6), xlim=(5, -5))
         # Net
         + p9.geom_rect(
             aes(xmin=-3, xmax=3, ymin=0, ymax=4), fill='lightgrey',
@@ -314,19 +314,83 @@ def _(aes, geom_point, ggplot, labs, p9, pl, player_data, sga, theme_bw):
             data=net_outline, 
             color="red", size=2, lineend="round"
         ) + geom_point(
-            aes(x='goalline_y_norm', y='goalline_z', size='pre_shot', fill='sga'), data=player_data
-        ) + p9.geom_label(aes(x=-4, y=5.5), data=None, label=f"SGA: {sga:.2f}")
+            aes(x='goalline_y', y='goalline_z', size='pre_shot', fill='sga'), data=player_data
+        ) + p9.geom_label(aes(x=4, y=5.5), data=None, label=f"SGA: {sga:.2f}")
         + p9.scale_fill_gradient2(low="Red", mid="White", high="Green")
+        + p9.scale_x_reverse()
         + theme_bw(base_size=12)
         + labs(x="", y="", fill="Shooting Goals Added", size="Pre-Shot xG",
-               subtitle="← Blocker Side       Glove Side →",
                caption="2025-26 Reg. Season Unblocked Shots",)
         + p9.theme(legend_title=p9.element_text(angle=-90), legend_title_position="right", legend_key_width=12,
-                   plot_subtitle=p9.element_text(ha="center"), axis_text=p9.element_blank(), axis_ticks=p9.element_blank())
+                   axis_text=p9.element_blank(), axis_ticks=p9.element_blank())
     )
 
-    # player_plot.save("plots/metrics/bedard_shot_chart.svg")
+    # player_plot.save("plots/metrics/bedard_shot_chart.png", dpi=500)
     player_plot
+    return (net_outline,)
+
+
+@app.cell
+def _(c, data):
+    goalie_data = (
+        data
+        .filter(
+            c('season') == '20252026',
+            c('opposing_goaltender_name') == 'Scott Wedgewood',
+            c('type').str.contains('blocked').not_(),
+            c('goalline_y').is_not_null(),
+            c('goalline_z').is_not_null(),
+        )
+        # .select(
+        #     c('pre_shot').sum().alias('pre_shot_xg'),
+        #     c('post_shot').sum().alias('post_shot_xg'),
+        #     (c('goal') - c('pre_shot')).sum().alias('pre_gsax'),
+        #     (c('goal') - c('post_shot')).sum().alias('post_gsax'),
+        #     (c('post_shot') - c('pre_shot')).sum().alias('shooting_goals_added'),
+        #     pl.len().alias('shots')
+        # )
+    )
+    return (goalie_data,)
+
+
+@app.cell
+def _(aes, geom_point, ggplot, goalie_data, labs, net_outline, p9, theme_bw):
+    goalie_plot = (
+        ggplot()
+        + p9.coord_fixed(ratio=1, ylim=(0, 5), xlim=(4, -4))
+        # Net
+        + p9.geom_rect(
+            aes(xmin=-3, xmax=3, ymin=0, ymax=4), fill='lightgrey',
+        )
+        # Ice Surface
+        + p9.geom_segment(
+            aes(x=-10, xend=10, y=0, yend=0), 
+            color="lightblue", size=2
+        ) 
+        # Posts
+        + p9.geom_path(
+            aes(x='y', y='z'), 
+            data=net_outline, 
+            color="red", size=2, lineend="round"
+        ) + geom_point(
+            aes(x='goalline_y_norm', y='goalline_z', size='post_shot', fill='goal', alpha='goal'),
+            data=goalie_data,
+        )
+        + p9.scale_fill_discrete(limits=(0,1), labels=("Save", "Goal"), direction=-1)
+        + p9.scale_alpha_discrete(range=(0.2,1), limits=(0,1), labels=("Save", "Goal"), guide=None)
+        + p9.scale_x_reverse()
+        + theme_bw(base_size=12)
+        + labs(x="", y="", fill="Outcome", size="Post-Shot xG",
+               subtitle="← Blocker Side       Glove Side →",
+               caption="2025-26 Reg. Season Unblocked Shots",)
+        + p9.theme(
+            legend_key_width=12, plot_subtitle=p9.element_text(ha="center"),
+            axis_text=p9.element_blank(), axis_ticks=p9.element_blank()
+        ) + p9.guides(fill=p9.guide_legend(override_aes={'size':8}))
+    )
+
+    # goalie_plot.save("plots/metrics/markstrom_shot_chart.png", dpi=500)
+    goalie_plot
     return
 
 
@@ -334,7 +398,7 @@ def _(aes, geom_point, ggplot, labs, p9, pl, player_data, sga, theme_bw):
 def _(c, data, pl):
     season_pairs = (
         data
-        .with_columns(pl.when(c('position') == 'D').then(pl.lit('Defensemen')).otherwise(pl.lit('Forwards')).alias('position_group'))
+        .with_columns(pl.when(c('position') == 'D').then(pl.lit('Defenders')).otherwise(pl.lit('Forwards')).alias('position_group'))
         .group_by("season", "player_reference_id", "position_group")
         .agg(
             c('pre_shot').sum().alias('pre_shot_xg'),
