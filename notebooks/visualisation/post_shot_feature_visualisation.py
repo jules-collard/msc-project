@@ -132,7 +132,7 @@ def _(
         'z': [0, 4, 4, 0]
     })
 
-    (
+    net_plot = (
         model_data
         .with_columns(
             ((pl.col('goalline_y') / grid_size).floor() * grid_size + (grid_size / 2)).alias('grid_y'),
@@ -157,7 +157,7 @@ def _(
         + p9.geom_path(
             aes(x='y', y='z'), 
             data=net_outline, 
-            color="red", size=2, lineend="round"
+            color="black", size=2, lineend="round"
         )
         # Scales
         + p9.coord_fixed(ratio=1, ylim=(0, 6))
@@ -168,8 +168,11 @@ def _(
         + labs(title="Relative Shot Success Rate by Goal Location",
               x="Horizontal Location (ft)", y="Vertical Location (ft)",
               fill="Relative \n Success Rate", size="# Shots",
-              caption=f"{caption} | Relative to League Avg. {mean_success_rate:.1%}")
+              caption=f"{caption} | Relative to On-Target League Avg. {mean_success_rate:.1%}")
     )
+
+    net_plot.save("plots/shot_detection/net_success_rates.png", dpi=500)
+    net_plot
     return grid_size, net_outline
 
 
