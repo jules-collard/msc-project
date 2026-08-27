@@ -35,7 +35,7 @@ def _():
 @app.cell
 def _():
     results = (
-        pl.read_parquet("models/pre_shot/fixed_trees_experiment_results_s3557.parquet")
+        pl.read_parquet("models/pre_shot/final_experiment_results_s3557.parquet")
         .with_columns(
             pl.col('framework')
             .str.replace('xgboost', 'XGBoost', literal=True)
@@ -97,7 +97,7 @@ def _(results):
         )
     )
     experiments_table
-    # print(experiments_table.as_latex())
+    print(experiments_table.as_latex())
     return
 
 

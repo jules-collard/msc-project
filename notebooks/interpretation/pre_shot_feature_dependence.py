@@ -22,7 +22,7 @@ with app.setup:
 
 @app.cell
 def _():
-    shot_data = batch_read_shot_data("/output/shot_data/20252026-clean/*.parquet")
+    shot_data = batch_read_shot_data("/output/shot_data/20252026/*.parquet")
     return (shot_data,)
 
 
