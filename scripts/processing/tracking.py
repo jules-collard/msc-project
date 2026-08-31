@@ -3,26 +3,6 @@ from typing import Union, List
 import polars as pl
 from polars import col as c
 
-def derive_game_clock(tracking: pl.DataFrame | pl.LazyFrame) -> pl.DataFrame | pl.LazyFrame: # USE FOR SINGLE GAME ONLY
-    """
-    Function to add period_time and game_time fields to tracking data.
-    
-    Uses the raw timestamps and clock_state information (1=moving, 2=stopped) to derive game clock.
-    Game time calculation is reset at each period to avoid build-up of timing errors
-    """
-    return (
-        tracking
-        .sort(c('ts'))
-        .with_columns(delta = c('ts').diff().over('game_id', 'period'))
-        # Don't increment game clock when clock is stopped
-        .with_columns(delta = pl.when(c('clock_state') == 1).then(c('delta')).otherwise(0).fill_null(0))
-        .with_columns(
-            period_time = c('delta').cum_sum().over('game_id', 'period')
-        ).with_columns(
-            game_time = (c('period') - 1) * 1200 + c('period_time')
-        ).drop(c('delta'))
-    )
-
 def convert_timestamps(expr: pl.Expr | str) -> pl.Expr:
     """
     Function to convert ts field from UNIX epochs to DateTime format (only for legibility)
@@ -52,7 +32,6 @@ def calculate_elapsed_time(
     column can then be used to join with events via timecodes.
     """
     
-    # Ensure inputs are expressions
     ts_expr = pl.col(ts) if isinstance(ts, str) else ts
     clock_expr = pl.col(clock_state) if isinstance(clock_state, str) else clock_state
     
