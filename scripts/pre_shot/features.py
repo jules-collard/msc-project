@@ -84,6 +84,26 @@ class PreShotData:
             # )
         )
 
+    def attacker_data(self) -> pl.LazyFrame:
+        return (
+            self.shots_prepared
+            .with_columns(
+                attacker_id = pl.concat_list(c('team_forwards_on_ice_refs', 'team_defencemen_on_ice_refs'))
+            ).explode('attacker_id', empty_as_null=True)
+            .sort(c('game_id', 'period', 'attacker_id', 'shot_time'))
+            .join_asof(
+                self.player_tracking_prepared.sort(c('game_id', 'period', 'SportlogiqPlayerID', 'elapsed_time')),
+                left_on='shot_time',
+                right_on='elapsed_time',
+                by_left=['game_id', 'period', 'attacker_id'],
+                by_right=['game_id', 'period', 'SportlogiqPlayerID'],
+                tolerance=0.15,
+                check_sortedness=False
+            ).with_columns(
+                adjust_vectors(c('x', 'y', 'vx', 'vy', 'ax', 'ay'))
+            )
+        )
+
     def goalie_data(self) -> pl.LazyFrame:
         return (
             self.shots_prepared
@@ -138,7 +158,7 @@ class PreShotData:
             self.defender_data()
             .group_by('game_id', 'period', 'shot_id')
             .agg(
-                c('pressure').sum().alias('total_pressure'),
+                pl.when(c('pressure').count() > 0).then(c('pressure').sum()).otherwise(None).alias('total_pressure'),
                 c('inside_shooting_lane').sum().alias('num_defenders_in_shooting_lane'),
                 c('inside_shadow_lane').sum().alias('num_defenders_in_shadow_lane'),
                 (c('pressure_direction') == 'left').sum().alias('num_pressures_left'),
