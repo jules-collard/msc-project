@@ -6,8 +6,8 @@ import optuna
 
 from scripts.data_readers import batch_read_shot_data
 from scripts.models.experiments import ExperimentRunner
-from scripts.models.data import prepare_data, post_shot_filter
-from scripts.models.features import get_features
+from scripts.models.data import prepare_data, post_shot_filter, one_hot_encode_shot_type
+from scripts.models.features import get_features, feature_sets
 
 
 def main():
@@ -22,7 +22,7 @@ def main():
     parser.add_argument(
         "feature_set",
         type=str,
-        choices=["pre_shot", "pre_shot_pruned", "pre_shot_minimal", "pre_shot_speed", "post_shot_full", "post_shot_minimal", "post_shot_xg"],
+        choices=feature_sets.keys(),
         help="Feature set to use for training."
     )
 
@@ -65,7 +65,7 @@ def main():
         "--frameworks",
         nargs='+',
         default=['lightgbm', 'xgboost'],
-        choices=['lightgbm-dart', 'xgboost-dart', 'lightgbm', 'xgboost'],
+        choices=['lightgbm', 'xgboost'],
         help="List of frameworks to test."
     )
 
@@ -111,7 +111,7 @@ def main():
     )
 
     args = parser.parse_args()
-    features = get_features(args.feature_set)
+    features = feature_sets[args.feature_set]
     
     if "pre_shot" in features and args.xg_data_pattern is None:
         parser.error("--xg-data-pattern is required")
@@ -120,9 +120,13 @@ def main():
 
     data = batch_read_shot_data(args.data_pattern).pipe(prepare_data)
 
-
     if args.feature_set.startswith("post_shot"):
+        print("Filtering data for post-shot features...")
         data = data.pipe(post_shot_filter)
+
+    if "one_hot" in args.feature_set:
+        print("One-hot encoding shot_type...")
+        data = data.pipe(one_hot_encode_shot_type)
 
     if "pre_shot" in features:
         xg_data = pl.scan_parquet(args.xg_data_pattern)

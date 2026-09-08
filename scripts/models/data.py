@@ -109,6 +109,13 @@ def prepare_data(data: pl.DataFrame | pl.LazyFrame) -> pl.DataFrame | pl.LazyFra
         )
     )
 
+def one_hot_encode_shot_type(data: pl.DataFrame | pl.LazyFrame) -> pl.DataFrame | pl.LazyFrame:
+    one_hot_exprs = [
+        (c('shot_type') == cat).alias(f"shot_type_{cat}")
+        for cat in ShotType.categories
+    ]
+    return data.with_columns(one_hot_exprs)
+
 def post_shot_filter(data: pl.DataFrame | pl.LazyFrame) -> pl.DataFrame | pl.LazyFrame:
     return (
         data

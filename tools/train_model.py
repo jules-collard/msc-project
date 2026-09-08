@@ -4,8 +4,8 @@ import json
 import polars as pl
 
 from scripts.data_readers import batch_read_shot_data
-from scripts.models.data import DataSplitter, prepare_data, post_shot_filter
-from scripts.models.features import get_features
+from scripts.models.data import DataSplitter, prepare_data, post_shot_filter, one_hot_encode_shot_type
+from scripts.models.features import feature_sets
 from scripts.models.training import ModelTrainer
 
 
@@ -34,7 +34,7 @@ def main():
     parser.add_argument(
         "feature_set",
         type=str,
-        choices=["pre_shot", "pre_shot_pruned", "pre_shot_minimal", "pre_shot_speed", "post_shot_full", "post_shot_minimal", "post_shot_xg"],
+        choices=feature_sets.keys(),
         help="Feature set to use for training."
     )
 
@@ -88,7 +88,7 @@ def main():
 
 
     data = batch_read_shot_data(args.data_pattern).pipe(prepare_data).collect()
-    features = get_features(args.feature_set)
+    features = feature_sets[args.feature_set]
 
     if "pre_shot" in features and args.xg_data_pattern is None:
         parser.error("--xg-data-pattern is required")
@@ -97,6 +97,9 @@ def main():
 
     if args.feature_set.startswith("post_shot"):
         data = data.pipe(post_shot_filter)
+
+    if "one_hot" in args.feature_set:
+        data = data.pipe(one_hot_encode_shot_type)
 
     if "pre_shot" in features:
         xg_data = pl.scan_parquet(args.xg_data_pattern).collect()

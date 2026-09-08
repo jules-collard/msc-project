@@ -1,3 +1,5 @@
+from models.types import ShotType
+
 pre_shot_features = [
     "shot_x",
     "shot_y",
@@ -81,7 +83,21 @@ post_shot_features_full = pre_shot_features_pruned + post_shot_features
 
 post_shot_features_minimal = pre_shot_features_minimal + post_shot_features
 
+post_shot_features_one_hot = post_shot_features_full + [f"shot_type_{cat}" for cat in ShotType.categories]
+post_shot_features_one_hot.remove("shot_type")  # Remove the original shot_type column since we have one-hot encoded columns
+
 post_shot_features_xg = ["pre_shot"] + post_shot_features
+
+feature_sets = {
+    "pre_shot": pre_shot_features,
+    "pre_shot_pruned": pre_shot_features_pruned,
+    "pre_shot_minimal": pre_shot_features_minimal,
+    "pre_shot_speed": pre_shot_features_speed,
+    "post_shot_full": post_shot_features_full,
+    "post_shot_minimal": post_shot_features_minimal,
+    "post_shot_xg": post_shot_features_xg,
+    "post_shot_one_hot": post_shot_features_one_hot
+}
 
 def get_features(feature_set: str) -> list[str]:
     match feature_set:
@@ -99,5 +115,7 @@ def get_features(feature_set: str) -> list[str]:
             return post_shot_features_minimal
         case "post_shot_xg":
             return post_shot_features_xg
+        case "post_shot_one_hot":
+            return post_shot_features_one_hot
         case _:
             raise ValueError(f"Unknown feature set: {feature_set}")
