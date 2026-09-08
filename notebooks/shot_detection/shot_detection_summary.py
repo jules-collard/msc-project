@@ -33,15 +33,15 @@ def _():
 
 
 @app.cell
-def _(DataSplitter, batch_read_shot_data, cs):
-    data = batch_read_shot_data("/output/shot_data/20242025-clean/*.parquet")
-
-    splitter = DataSplitter(data.collect(), cs.all().exclude('goal'), 'goal', split_path="models/train_test_20242025.npz")
-    return (splitter,)
+def _(batch_read_shot_data):
+    data = batch_read_shot_data("/output/shot_data/20242025-wide-window/*.parquet")
+    return (data,)
 
 
 @app.cell
-def _(splitter):
+def _(DataSplitter, cs, data):
+    splitter = DataSplitter(data.collect(), cs.all().exclude('goal'), 'goal', split_path="models/train_test_20242025.npz")
+
     data_train, _y_train, _X_test, _y_test, _groups = splitter.get_split_data()
     return (data_train,)
 
@@ -86,7 +86,7 @@ def _(aes, c, data_train, geom_hline, geom_vline, ggplot, labs, p9, theme_bw):
         + p9.theme(aspect_ratio=1)
     )
 
-    location_plot.save("plots/shot_detection/location_error_distribution.png", width=6, height=6, dpi=500)
+    # location_plot.save("plots/shot_detection/location_error_distribution.png", width=6, height=6, dpi=500)
     location_plot
     return
 

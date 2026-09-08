@@ -9,7 +9,7 @@ from utils import magnitude_2d, distance_2d
 def calculate_shot_detection(
         shots: pl.DataFrame | pl.LazyFrame,
         puck_tracking: pl.DataFrame | pl.LazyFrame,
-        window_size: float = 1.6,
+        window_size: float = 3,
         distance_threshold: float = 8,
         impact_acceleration_threshold: float = -800,
         deflection_angle_threshold: float = 25
