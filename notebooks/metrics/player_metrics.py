@@ -13,7 +13,6 @@ def _():
     from great_tables import GT
     import plotnine as p9
     from plotnine import ggplot, aes, geom_point, theme_bw, labs
-    from mizani.formatters import percent_format
 
     from data_readers import batch_read_shot_data
     from models.data import prepare_data
@@ -48,8 +47,8 @@ def _(c, pl):
 
 @app.cell
 def _(batch_read_shot_data, c, pl, reg_season_game_ids):
-    shot_data_2425 = batch_read_shot_data("/output/shot_data/20242025/*.parquet").with_columns(season=pl.lit('20242025'))
-    shot_data_2526 = batch_read_shot_data("/output/shot_data/20252026/*.parquet").with_columns(season=pl.lit('20252026'))
+    shot_data_2425 = batch_read_shot_data("/output/shot_data/20242025-wide-window/*.parquet").with_columns(season=pl.lit('20242025'))
+    shot_data_2526 = batch_read_shot_data("/output/shot_data/20252026-wide-window/*.parquet").with_columns(season=pl.lit('20252026'))
 
     shot_data = pl.concat([shot_data_2425, shot_data_2526], how='vertical').filter(c('game_id').is_in(reg_season_game_ids.implode()))
     return (shot_data,)
@@ -57,8 +56,8 @@ def _(batch_read_shot_data, c, pl, reg_season_game_ids):
 
 @app.cell
 def _(c, pl):
-    pre_shot_xg = pl.scan_parquet("/output/predictions/*/pre_shot_2008.parquet")
-    post_shot_xg = pl.scan_parquet("/output/predictions/*/post_shot_2108.parquet")
+    pre_shot_xg = pl.scan_parquet("/output/predictions/*/pre_shot_0809.parquet")
+    post_shot_xg = pl.scan_parquet("/output/predictions/*/post_shot_one_hot_0809.parquet")
 
     player_mappings = pl.scan_csv("mappings/NHL_20242025_20252026_player_sportlogiq_id_map.csv").with_columns(c('SportlogiqPlayerID').cast(pl.String)).drop('EntityOfficialID')
     return player_mappings, post_shot_xg, pre_shot_xg
@@ -166,6 +165,12 @@ def _(c, shooter_metrics):
 
 
 @app.cell
+def _(c, forwards_table):
+    forwards_table.filter(c('name') == 'Cole Caufield')
+    return
+
+
+@app.cell
 def _(GT, cs, forwards_table):
     top_10_shooters = (
         GT(
@@ -267,8 +272,8 @@ def _(c, data):
         data
         .filter(
             c('season') == '20252026',
-            c('player_first_name') == 'Connor',
-            c('player_last_name') == 'Bedard',
+            c('player_first_name') == 'Lane',
+            c('player_last_name') == 'Hutson',
             c('type').str.contains('blocked').not_(),
             c('goalline_y').is_not_null(),
             c('goalline_z').is_not_null()
@@ -320,77 +325,33 @@ def _(aes, geom_point, ggplot, labs, p9, pl, player_data, sga, theme_bw):
         + p9.scale_x_reverse()
         + theme_bw(base_size=12)
         + labs(x="", y="", fill="Shooting Goals Added", size="Pre-Shot xG",
-               caption="2025-26 Reg. Season Unblocked Shots",)
+               caption="2025-26 Reg. Season Unblocked Shots", title="Lane Hutson")
         + p9.theme(legend_title=p9.element_text(angle=-90), legend_title_position="right", legend_key_width=12,
                    axis_text=p9.element_blank(), axis_ticks=p9.element_blank())
     )
 
     # player_plot.save("plots/metrics/bedard_shot_chart.png", dpi=500)
     player_plot
-    return (net_outline,)
+    return
 
 
 @app.cell
-def _(c, data):
-    goalie_data = (
-        data
-        .filter(
-            c('season') == '20252026',
-            c('opposing_goaltender_name') == 'Scott Wedgewood',
-            c('type').str.contains('blocked').not_(),
-            c('goalline_y').is_not_null(),
-            c('goalline_z').is_not_null(),
+def _(c, goalie_data, pl):
+    grid_size=0.5
+
+    grid_data = (
+        goalie_data
+        .with_columns(
+            ((pl.col('goalline_y') / grid_size).floor() * grid_size + (grid_size / 2)).alias('grid_y'),
+            ((pl.col('goalline_z') / grid_size).floor() * grid_size + (grid_size / 2)).alias('grid_z')
+        ).group_by('grid_y', 'grid_z')
+        .agg(
+            (c('post_shot').sum() - c('goal').sum()).alias('gsax')
+        ).filter(
+            c('grid_y').is_between(-5, 5),
+            c('grid_z').is_between(0, 6),
         )
-        # .select(
-        #     c('pre_shot').sum().alias('pre_shot_xg'),
-        #     c('post_shot').sum().alias('post_shot_xg'),
-        #     (c('goal') - c('pre_shot')).sum().alias('pre_gsax'),
-        #     (c('goal') - c('post_shot')).sum().alias('post_gsax'),
-        #     (c('post_shot') - c('pre_shot')).sum().alias('shooting_goals_added'),
-        #     pl.len().alias('shots')
-        # )
     )
-    return (goalie_data,)
-
-
-@app.cell
-def _(aes, geom_point, ggplot, goalie_data, labs, net_outline, p9, theme_bw):
-    goalie_plot = (
-        ggplot()
-        + p9.coord_fixed(ratio=1, ylim=(0, 5), xlim=(4, -4))
-        # Net
-        + p9.geom_rect(
-            aes(xmin=-3, xmax=3, ymin=0, ymax=4), fill='lightgrey',
-        )
-        # Ice Surface
-        + p9.geom_segment(
-            aes(x=-10, xend=10, y=0, yend=0), 
-            color="lightblue", size=2
-        ) 
-        # Posts
-        + p9.geom_path(
-            aes(x='y', y='z'), 
-            data=net_outline, 
-            color="red", size=2, lineend="round"
-        ) + geom_point(
-            aes(x='goalline_y_norm', y='goalline_z', size='post_shot', fill='goal', alpha='goal'),
-            data=goalie_data,
-        )
-        + p9.scale_fill_discrete(limits=(0,1), labels=("Save", "Goal"), direction=-1)
-        + p9.scale_alpha_discrete(range=(0.2,1), limits=(0,1), labels=("Save", "Goal"), guide=None)
-        + p9.scale_x_reverse()
-        + theme_bw(base_size=12)
-        + labs(x="", y="", fill="Outcome", size="Post-Shot xG",
-               subtitle="← Blocker Side       Glove Side →",
-               caption="2025-26 Reg. Season Unblocked Shots",)
-        + p9.theme(
-            legend_key_width=12, plot_subtitle=p9.element_text(ha="center"),
-            axis_text=p9.element_blank(), axis_ticks=p9.element_blank()
-        ) + p9.guides(fill=p9.guide_legend(override_aes={'size':8}))
-    )
-
-    # goalie_plot.save("plots/metrics/markstrom_shot_chart.png", dpi=500)
-    goalie_plot
     return
 
 

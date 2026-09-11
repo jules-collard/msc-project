@@ -9,6 +9,7 @@ dependencies = [
     "betacal>=1.1.0",
     "calibra>=0.3.2",
     "great-tables>=0.23.0",
+    "highlight-text>=0.2",
     "hockey-rink>=1.1.4",
     "ijson>=3.5.1",
     "imbalanced-learn>=0.14.2",

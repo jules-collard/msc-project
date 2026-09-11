@@ -20,6 +20,7 @@ __marimo__/
 *.joblib
 *.parquet
 *.npz
+/plots/goalie_plots/
 
 # Misc
 scripts/save_post_shot_data.py
