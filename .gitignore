@@ -21,6 +21,7 @@ __marimo__/
 *.parquet
 *.npz
 /plots/goalie_plots/
+/plots/shooter_plots/
 
 # Misc
 scripts/save_post_shot_data.py

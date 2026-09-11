@@ -14,8 +14,7 @@ def _():
     from plotnine import ggplot, aes, geom_point, theme_bw, labs
     from mizani.labels import label_percent, label_number
     from highlight_text import ax_text, fig_text
-    from matplotlib import pyplot as plt
-    import matplotlib.font_manager
+    from ninejs import interactive
 
     from data_readers import batch_read_shot_data
     from models.data import prepare_data
@@ -56,25 +55,13 @@ def _(batch_read_shot_data, c, pl):
     post_shot_xg = pl.scan_parquet("/output/predictions/*/post_shot_one_hot_0809.parquet")
 
     player_mappings = pl.scan_csv("mappings/NHL_20242025_20252026_player_sportlogiq_id_map.csv").with_columns(c('SportlogiqPlayerID').cast(pl.String)).drop('EntityOfficialID')
-    return player_mappings, post_shot_xg, pre_shot_xg, shot_data
-
-
-@app.cell
-def _(c, data, mo):
-    goalie_names = data.select(c('opposing_goaltender_name').unique()).to_series()
-
-    goalie_selector = mo.ui.dropdown(
-        goalie_names,
-        searchable=True
-    )
-    return (goalie_selector,)
+    return post_shot_xg, pre_shot_xg, shot_data
 
 
 @app.cell
 def _(
     c,
     pl,
-    player_mappings,
     post_shot_xg,
     pre_shot_xg,
     prepare_data,
@@ -95,55 +82,57 @@ def _(
             on=["game_id", "period", "shot_id"],
             how='left',
             validate='1:1'
-        ).join(
-            player_mappings,
-            left_on="opposing_team_goalie_on_ice_ref",
-            right_on="SportlogiqPlayerID",
-            how='left',
-            validate='m:1'
-        ).rename({'PlayerName': "opposing_goaltender_name"})
+        )
         .with_columns(
             pl.when(c('type').str.contains('blocked')).then(0).otherwise(c('post_shot')).alias('post_shot')
         )
         .with_columns(c('post_shot').fill_null(c('pre_shot')))
         .with_columns(
-            gsax = c('post_shot') - c('goal')
+            sga = c('post_shot') - c('pre_shot')
         ).with_columns(
-            gsax_abs = c('gsax').abs()
-        )
-        .collect()
+            sga_abs = c('sga').abs()
+        ).with_columns(
+            shooter_name = pl.concat_str(c('player_first_name', 'player_last_name'), separator=" ")
+        ).collect()
     )
     return (data,)
 
 
 @app.cell
-def _(c, data, goalie_name):
-    goalie_data = (
+def _(c, data, mo, pl):
+    shooter_names = data.select(pl.concat_str(c('player_first_name', 'player_last_name'), separator=" ").unique()).to_series()
+
+    player_selector = mo.ui.dropdown(shooter_names, searchable=True)
+    return (player_selector,)
+
+
+@app.cell
+def _(c, data, shooter_name):
+    shooter_data = (
         data
         .filter(
             c('season') == '20252026',
-            c('opposing_goaltender_name') == goalie_name,
+            c('shooter_name') == shooter_name,
             c('type').str.contains('blocked').not_(),
             c('goalline_y').is_not_null(),
             c('goalline_z').is_not_null(),
         )
     )
 
-    gsax = goalie_data.select(c('gsax').sum()).item()
-    gsax_colour = 'green' if gsax >= 0 else 'red'
-    return goalie_data, gsax, gsax_colour
+    sga = shooter_data.select(c('sga').sum()).item()
+    sga_colour = 'green' if sga >= 0 else 'red'
+    return sga, sga_colour, shooter_data
 
 
 @app.cell
-def _(goalie_selector):
-    goalie_name = goalie_selector.value
-    subtitle = "Unblocked shots <saved> and <conceded> (2025-26 Reg. Season)"
-    caption = "← Blocker Side       Glove Side →"
+def _(player_selector):
+    shooter_name = player_selector.value
+    subtitle = "xG <added> and <lost> by shot execution (2025-26 Reg. Season)"
 
     low_colour = "red"
     high_colour = "green"
     mid_colour = "white"
-    return caption, goalie_name, high_colour, low_colour, mid_colour, subtitle
+    return high_colour, low_colour, mid_colour, shooter_name, subtitle
 
 
 @app.cell
@@ -169,13 +158,8 @@ def _(aes, p9, pl):
 def _(
     aes,
     ax_text,
-    caption,
     geom_point,
     ggplot,
-    goalie_data,
-    goalie_name,
-    gsax,
-    gsax_colour,
     high_colour,
     label_number,
     labs,
@@ -184,6 +168,10 @@ def _(
     net,
     p9,
     posts,
+    sga,
+    sga_colour,
+    shooter_data,
+    shooter_name,
     subtitle,
 ):
     p = (
@@ -191,27 +179,25 @@ def _(
         + net
         + posts
         + geom_point(
-            aes(x='goalline_y_norm', y='goalline_z', size='gsax_abs', fill='gsax', alpha='gsax_abs'),
-            data=goalie_data,
+            aes(x='goalline_y', y='goalline_z', size='pre_shot', fill='sga'),
+            data=shooter_data,
         ) + p9.geom_label(
-            aes(x=3, y=5), color=gsax_colour, label=f"GSAX: {gsax:.2f}"
+            aes(x=4.5, y=5.5), color=sga_colour, label=f"SGA: {sga:.2f}"
         )
         + p9.scale_fill_gradient2(low=low_colour, mid=mid_colour, high=high_colour, labels=label_number(style_positive="+"))
-        + p9.scale_size_continuous(breaks=[0.25, 0.5, 0.75], labels=lambda x: [f"±{label}" for label in x], limits=(0,1))
-        + p9.scale_alpha_continuous(breaks=[0.25, 0.5, 0.75], labels=lambda x: [f"±{label}" for label in x], limits=(0,1))
+        + p9.scale_size_continuous(breaks=[0.2,0.4,0.6], limits=(0,1), range=(1,9))
         + p9.scale_x_reverse()
-        + p9.coord_fixed(ratio=1, ylim=(0, 5), xlim=(4, -4))
+        + p9.coord_fixed(ratio=1, ylim=(0, 6), xlim=(6, -6))
         + p9.theme_538(base_size=12)
-        + labs(x="", y="", fill="GSAX", alpha="", size="",
-               title=" ", subtitle=" ",
-               caption=caption)
+        + labs(x="", y="", fill="SGA", size="PreXG",
+               title=" ", subtitle=" ")
         + p9.theme(
             plot_caption=p9.element_text(ha="center"),
             axis_text=p9.element_blank(), axis_ticks=p9.element_blank(),
-            dpi=300
+            dpi=300, figure_size=(8,4.5)
         )
         + p9.guides(
-            alpha=p9.guide_legend(override_aes={'fill':'white'}),
+            size=p9.guide_legend(override_aes={'fill': 'white'}),
             fill=p9.guide_colorbar(theme=p9.theme(legend_key_width=12, legend_key_height=80))
         )
     )
@@ -220,8 +206,8 @@ def _(
     ax = fig.axes[0]
 
     ax_text(
-        s=f"<{goalie_name}>\n{subtitle}",
-        x=-4.2, y=5.5, ax=ax, va='bottom',
+        s=f"<{shooter_name}>\n{subtitle}",
+        x=-6.2, y=6.5, ax=ax, va='bottom',
         highlight_textprops=[
             {'fontsize': 18},
             {'color': high_colour, 'fontweight': 'bold'}, 
@@ -234,18 +220,18 @@ def _(
 
 
 @app.cell
-def _(fig, goalie_name, save_button):
+def _(fig, save_button, shooter_name):
     if save_button.value:
-        fig.savefig(f"plots/goalie_plots/{goalie_name}.png", dpi=300, bbox_inches='tight')
+        fig.savefig(f"plots/shooter_plots/{shooter_name}.png", dpi=300, bbox_inches='tight')
     return
 
 
 @app.cell
-def _(ax, goalie_selector, mo):
+def _(ax, mo, player_selector):
     save_button = mo.ui.run_button(label="Save")
 
     mo.vstack([
-        mo.hstack([goalie_selector, save_button], justify="start"),
+        mo.hstack([player_selector, save_button], justify="start"),
         ax
     ])
     return (save_button,)
