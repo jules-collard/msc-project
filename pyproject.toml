@@ -16,6 +16,7 @@ dependencies = [
     "lightgbm>=4.6.0",
     "marimo==0.24.0",
     "matplotlib>=3.10.9",
+    "ninejs>=0.1.1",
     "numba>=0.66.0",
     "numpy>=2.4.6",
     "optuna>=4.9.0",
