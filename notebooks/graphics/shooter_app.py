@@ -13,7 +13,7 @@ def _():
     from plotnine import ggplot, aes, geom_point, labs
     from mizani.labels import label_number
     from mizani.bounds import squish
-    from ninejs import interactive, css, to_html
+    from ninejs import interactive, css, to_html, save
 
     from data_readers import batch_read_shot_data
     from models.data import prepare_data
@@ -36,6 +36,7 @@ def _():
         p9,
         pl,
         prepare_data,
+        save,
         squish,
         to_html,
     )
@@ -243,26 +244,40 @@ def _(
 
 @app.cell
 def _(css, goal_plot, interactive, rink_plot, to_html):
-    plot = (goal_plot | rink_plot)
-
-    plot_html = (
-        interactive(plot)
+    plot = (
+        interactive((goal_plot | rink_plot))
         + css(from_dict={
             ".tooltip": {"font-size": "1.1em", "padding": "8px 10px"},
-            ".plot-element.hovered": {"fill": "#6642f5"}
+            ".plot-element.hovered": {"fill": "#6642f5"},
         })
-        + to_html()
     )
-    return (plot_html,)
+
+    plot_html = plot + to_html()
+    return plot, plot_html
+
+
+@app.cell
+def _(css, plot, save, save_button, shooter_name):
+    if save_button.value:
+        plot + css(from_dict={
+            "svg": {
+                "width": "auto", 
+                "height": "80vh"
+            },
+            "div": {"flex-wrap": "wrap", "justify-content": "center"}
+        }) + save(f"output/interactive/{shooter_name}.html")
+    return
 
 
 @app.cell
 def _(mo, player_selector, plot_html):
+    save_button = mo.ui.run_button(label="Save")
+
     mo.vstack([
-        player_selector,
+        mo.hstack([player_selector, save_button], justify="start"),
         mo.iframe(plot_html)
     ])
-    return
+    return (save_button,)
 
 
 if __name__ == "__main__":
