@@ -149,3 +149,10 @@ def geom_net():
     ))
 
     return layers
+
+def geom_ice():
+    return gg.geom_segment(
+        aes(x=-5, xend=5, y=0, yend=0), 
+        color="lightblue", size=2,
+        inherit_aes=False
+    )
