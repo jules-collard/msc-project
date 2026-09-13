@@ -9,10 +9,10 @@ def _():
     import marimo as mo
     import polars as pl
     from polars import col as c
-    from polars import selectors as cs
     import plotnine as p9
-    from plotnine import ggplot, aes, geom_point, theme_bw, labs
-    from mizani.labels import label_percent, label_number
+    from plotnine import ggplot, aes, geom_point, labs
+    from mizani.labels import label_number
+    from mizani.bounds import squish
     from ninejs import interactive, css, to_html
 
     from data_readers import batch_read_shot_data
@@ -36,6 +36,7 @@ def _():
         p9,
         pl,
         prepare_data,
+        squish,
         to_html,
     )
 
@@ -102,6 +103,7 @@ def _(
                 pl.when(c('goal')).then(pl.lit('Goal'))
                 .when(c('outcome') == 'successful').then(pl.lit('On Target'))
                 .otherwise(pl.lit('Missed'))
+                .cast(pl.Enum(['Goal', 'On Target', 'Missed']))
             ),
         ).with_columns(
             tooltip=pl.format(
@@ -140,7 +142,7 @@ def _(c, data, shooter_name):
             c('type').str.contains('blocked').not_(),
             c('goalline_y').is_not_null(),
             c('goalline_z').is_not_null(),
-        )
+        ).sort(c('result'))
     )
 
     sga = shooter_data.select(c('sga').sum()).item()
@@ -174,13 +176,14 @@ def _(
     p9,
     shooter_data,
     shooter_name,
+    squish,
 ):
     goal_plot = (
         ggplot(shooter_data, aes(x='goalline_y', y='goalline_z', size='pre_shot', fill='sga'))
         + geom_net()
         + geom_ice()
         + geom_point(mapping=mapping)
-        + p9.scale_fill_gradient2(limits=(-0.6,0.6), low=low_colour, mid=mid_colour, high=high_colour, labels=label_number(style_positive="+"))
+        + p9.scale_fill_gradient2(limits=(-0.6,0.6), low=low_colour, mid=mid_colour, high=high_colour, labels=label_number(style_positive="+"), oob=squish)
         + p9.scale_size_continuous(breaks=[0.2,0.4,0.6], limits=(0,1), range=(1,9))
         + p9.scale_x_reverse()
         + p9.coord_fixed(ratio=1, ylim=(0, 6), xlim=(4.5, -4.5))
@@ -218,16 +221,22 @@ def _(
     shooter_data,
 ):
     rink_plot = (
-        ggplot(shooter_data, aes(x="shot_x", y="shot_y", fill="sga"))
+        ggplot(shooter_data, aes(x="shot_x", y="shot_y", fill="sga", shape='result'))
         + geom_rink()
         + p9.geom_point(
-            mapping=mapping, alpha=0.6, size=3, color="black"
+            mapping=mapping, alpha=0.75, size=4, color="black"
             # arrow=p9.arrow(type="closed", angle=15, length=0.1)
         )
         + p9.scale_fill_gradient2(limits=(-0.6,0.6), low=low_colour, mid=mid_colour, high=high_colour, labels=label_number(style_positive="+"))
+        + p9.scale_shape_manual(values={'Goal': '*', 'Missed': 's', 'On Target': '^'})
         + p9.coord_fixed(xlim=(25, None))
         + p9.theme_void()
-        + p9.guides(fill=False)
+        + p9.theme(legend_position='bottom')
+        + p9.labs(shape="")
+        + p9.guides(
+            fill=False,
+            shape=p9.guide_legend(override_aes={'fill': 'white'})
+        )
     )
     return (rink_plot,)
 
