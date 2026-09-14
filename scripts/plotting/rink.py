@@ -8,7 +8,7 @@ def _circle_points(x, y, radius, start_angle=0, end_angle=2*np.pi, n=100):
     t = np.linspace(start_angle, end_angle, n)
     return pl.DataFrame({'x': x + radius * np.cos(t), 'y': y + radius * np.sin(t)})
 
-def geom_rink():
+def geom_rink(fill=None):
     """
     Returns a list of plotnine geoms representing an NHL hockey rink.
     Coordinates: Center Ice at (0,0), X from -100 to 100, Y from -42.5 to 42.5.
@@ -36,8 +36,24 @@ def geom_rink():
     ])
     layers.append(gg.geom_polygon(data=crease_left, mapping=aes(x='x', y='y'), 
                                   fill='lightblue', color='red', inherit_aes=False))
+
+    # Goal Nets
+    net_depth = 40 / 12  
     
-    # 3. Static Lines (Goal lines, Blue lines, Center line)
+    net_right = pl.DataFrame({
+        'x': [89., 89. + net_depth, 89. + net_depth, 89.],
+        'y': [3., 3., -3., -3.]
+    })
+    
+    net_left = pl.DataFrame({
+        'x': [-89., -89. - net_depth, -89. - net_depth, -89.],
+        'y': [3., 3., -3., -3.]
+    })
+    
+    layers.append(gg.geom_polygon(data=net_right, mapping=aes(x='x', y='y'), color='grey', fill='grey', size=1, inherit_aes=False))
+    layers.append(gg.geom_polygon(data=net_left, mapping=aes(x='x', y='y'), color='grey', fill='grey', size=1, inherit_aes=False))
+    
+    # Static Lines (Goal lines, Blue lines, Center line)
     # The goal lines endpoints are calculated where X=89 intersects the 28ft corner radius (Y +/- 36.75)
     lines = pl.DataFrame({
         'x':    [89., -89., 25., -25., 0.],
@@ -125,7 +141,12 @@ def geom_rink():
     
     layers.append(gg.geom_polygon(data=boards, mapping=aes(x='x', y='y'), 
                                fill=None, color='black', size=1, inherit_aes=False))
-    
+
+    # Ice background fill (optional)
+    if fill:
+        layers.insert(0, gg.geom_polygon(data=boards, mapping=aes(x='x', y='y'),
+                                   fill=fill, color=None, inherit_aes=False))
+
     return layers
 
 def geom_net():
