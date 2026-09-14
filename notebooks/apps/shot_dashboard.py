@@ -15,6 +15,7 @@ def _():
     from polars import col as c
     import plotnine as gg
     from plotnine import ggplot, aes
+    import mizani.labels as ml
 
     from data_readers import read_game_id_mapping, batch_read_shot_data, batch_read_entity_tracking, batch_read_puck_tracking, read_player_id_mapping
     from plotting.rink import geom_ice, geom_net, geom_rink
@@ -34,6 +35,7 @@ def _():
         geom_rink,
         gg,
         ggplot,
+        ml,
         mo,
         pl,
         read_game_id_mapping,
@@ -140,9 +142,30 @@ def _(
             c('team_source').replace_strict({'with_team': 'Offense', 'opposing_team': 'Defence', 'opposing_team_goalie_on_ice_ref': 'Goalie'})
         )
     )
-
-    shap = pl.read_parquet(f"/output/shap/*/{sportlogiq_id}_shap.parquet")
     return puck_tracking, shot_data
+
+
+@app.cell
+def _(c, cs, pl, sportlogiq_id):
+    shap = (
+        pl.read_parquet(f"/output/shap/*/{sportlogiq_id}_shap.parquet")
+        .unpivot(
+            on=cs.all().exclude('game_id', 'period', 'shot_id', 'base_value'),
+            index=['game_id', 'period', 'shot_id', 'base_value'],
+            variable_name='variable',
+            value_name='shap'
+        ).with_columns(c('shap').abs().alias('abs_shap'))
+        .sort('shot_id', 'abs_shap')
+        .with_columns(
+            (c('base_value') + c('shap').cum_sum().over('shot_id')).alias('end'),
+            (c('shap') > 0).alias('increase')
+        ).with_columns(
+            c('end').shift(1).over('shot_id').fill_null(c('base_value')).alias('start')
+        ).with_columns(
+            c('variable').str.replace("_", " ").str.to_titlecase()
+        )
+    )
+    return (shap,)
 
 
 @app.cell
@@ -153,10 +176,11 @@ def _(c, mo, shot_data):
 
 
 @app.cell
-def _(c, pl, puck_tracking, shot_data, shot_selector, time):
+def _(c, pl, puck_tracking, shap, shot_data, shot_selector, time):
     shot_tracking = shot_data.filter(c('index') == shot_selector.value)
     shot_plot_data = shot_tracking.head(1)
 
+    shot_id = shot_plot_data.select(c('shot_id').first()).item()
     period = shot_plot_data.select(c('period').first()).item()
     elapsed_time = shot_plot_data.select(c('elapsed_time').first()).item()
     flip = shot_plot_data.select(c('flip').first()).item()
@@ -172,10 +196,17 @@ def _(c, pl, puck_tracking, shot_data, shot_selector, time):
             pl.when(flip).then(-c('x','y','z')).otherwise(c('x','y','z'))
         )
     )
+
+    shot_shap = (
+        shap
+        .filter(c('shot_id') == shot_id)
+        .with_row_index('x_id', offset=1)
+    )
     return (
         period,
         shot_plot_data,
         shot_puck_tracking,
+        shot_shap,
         shot_tracking,
         time_remaining,
     )
@@ -203,6 +234,7 @@ def _(
         + gg.theme(
             axis_text=gg.element_blank(), axis_ticks=gg.element_blank(),
             axis_title=gg.element_blank(),
+            plot_title=gg.element_text(size=20, weight="bold"),
             dpi=300
         ) + gg.labs(
             title=game_selector.value,
@@ -248,13 +280,78 @@ def _(
 
 
 @app.cell
-def _(game_selector, goal_plot, mo, rink_plot, shot_selector):
+def _(aes, c, gg, ggplot, ml, shot_shap):
+    if shot_shap.height > 0:
+        max_shap = shot_shap.select(c('end').max()).item()
+    
+        shap_plot = (
+            ggplot(shot_shap)
+            + gg.geom_rect(
+                aes(
+                    xmin="x_id - 0.4", 
+                    xmax="x_id + 0.4", 
+                    ymin="start", 
+                    ymax="end", 
+                    fill="increase"
+                ),
+                size=0.5
+            )
+            + gg.geom_segment(
+                aes(
+                    x="x_id - 1.4", 
+                    xend="x_id + 0.4", 
+                    y="start", 
+                    yend="start"
+                ),
+                linetype="dashed", 
+                color="gray",
+                inherit_aes=False
+            ) + gg.geom_label(
+                aes(
+                    x="x_id",
+                    y=max_shap + 0.01,
+                    label="shap",
+                    colour="increase"
+                ),
+                format_string="{:+.1%}",
+                size=8
+            )
+            + gg.scale_x_continuous(
+                breaks=shot_shap["x_id"].to_list(),
+                labels=shot_shap["variable"].to_list(),
+                limits=(0.25, None)
+            ) + gg.scale_y_continuous(
+                limits=(0, max_shap + 0.02),
+                labels=ml.label_percent()
+            )
+            + gg.scale_fill_manual(values={True: "#ff0051", False: "#008bfb"}) # Standard SHAP colors
+            + gg.scale_color_manual(values={True: "#ff0051", False: "#008bfb"}) # Standard SHAP colors
+            + gg.theme_538(base_size=8)
+            + gg.coord_flip()
+            + gg.theme(
+                panel_grid_major_y=gg.element_blank(),
+                panel_border=gg.element_rect(),
+                legend_position="none",
+                dpi=300,
+            )
+            + gg.labs(
+                x="", y="Post-Shot xG"
+            )
+        )
+    else:
+        shap_plot = None
+    return (shap_plot,)
+
+
+@app.cell
+def _(game_selector, goal_plot, mo, rink_plot, shap_plot, shot_selector):
     mo.vstack([
         mo.hstack([
             game_selector, shot_selector
         ], justify="start"),
-        mo.hstack([goal_plot, rink_plot], widths=[1,1], gap=0)
-    ])
+        mo.hstack([goal_plot, rink_plot], widths=[1,1], gap=0),
+        mo.hstack([shap_plot])
+    ], gap=0)
     return
 
 
