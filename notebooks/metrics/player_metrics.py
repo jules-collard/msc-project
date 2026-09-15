@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.24.0"
+__generated_with = "0.24.2"
 app = marimo.App(width="medium")
 
 
@@ -165,12 +165,6 @@ def _(c, shooter_metrics):
 
 
 @app.cell
-def _(c, forwards_table):
-    forwards_table.filter(c('name') == 'Cole Caufield')
-    return
-
-
-@app.cell
 def _(GT, cs, forwards_table):
     top_10_shooters = (
         GT(
@@ -178,6 +172,15 @@ def _(GT, cs, forwards_table):
             .head(10)
         ).cols_label(rank="Rank", name="Player Name", shots="Shot Attempts", pre_shot_xg="PreXG", post_shot_xg="PostXG", shooting_goals_added="SGA")
         .fmt_number(cs.numeric().exclude('rank', 'shots'))
+        .data_color(
+            columns=['pre_shot_xg', 'post_shot_xg'],
+            palette='Purples',
+            domain=[0, 50]
+        ).data_color(
+            columns=['shooting_goals_added'],
+            palette=['red', 'white', 'green'],
+            domain=[-10, 10]
+        )
     )
 
     top_10_shooters
@@ -193,6 +196,15 @@ def _(GT, cs, forwards_table):
             .tail(10)
         ).cols_label(rank="Rank", name="Player Name", shots="Shot Attempts", pre_shot_xg="PreXG", post_shot_xg="PostXG", shooting_goals_added="SGA")
         .fmt_number(cs.numeric().exclude('rank', 'shots'))
+        .data_color(
+            columns=['pre_shot_xg', 'post_shot_xg'],
+            palette='Purples',
+            domain=[0, 50]
+        ).data_color(
+            columns=['shooting_goals_added'],
+            palette=['red', 'white', 'green'],
+            domain=[-10, 10]
+        )
     )
 
     bottom_10_shooters
@@ -205,9 +217,18 @@ def _(GT, cs, defensemen_table):
     top_5_defensemen = (
         GT(
             defensemen_table
-            .head(5)
+            .head(10)
         ).cols_label(rank="Rank", name="Player Name", shots="Shot Attempts", pre_shot_xg="PreXG", post_shot_xg="PostXG", shooting_goals_added="SGA")
         .fmt_number(cs.numeric().exclude('rank', 'shots'))
+        .data_color(
+            columns=['pre_shot_xg', 'post_shot_xg'],
+            palette='Purples',
+            domain=[0, 50]
+        ).data_color(
+            columns=['shooting_goals_added'],
+            palette=['red', 'white', 'green'],
+            domain=[-10, 10]
+        )
     )
 
     top_5_defensemen
@@ -220,9 +241,18 @@ def _(GT, cs, defensemen_table):
     bottom_5_defensemen = (
         GT(
             defensemen_table
-            .tail(5)
+            .tail(10)
         ).cols_label(rank="Rank", name="Player Name", shots="Shot Attempts", pre_shot_xg="PreXG", post_shot_xg="PostXG", shooting_goals_added="SGA")
         .fmt_number(cs.numeric().exclude('rank', 'shots'))
+        .data_color(
+            columns=['pre_shot_xg', 'post_shot_xg'],
+            palette='Purples',
+            domain=[0, 50]
+        ).data_color(
+            columns=['shooting_goals_added'],
+            palette=['red', 'white', 'green'],
+            domain=[-10, 10]
+        )
     )
 
     bottom_5_defensemen
@@ -235,12 +265,16 @@ def _(GT, cs, goalie_metrics):
     top_10_goalies = (
         GT(
             goalie_metrics
-            .select('rank', 'opposing_goaltender_name', 'pre_gsax', 'post_gsax', 'diff')
+            .select('rank', 'opposing_goaltender_name', 'pre_gsax', 'post_gsax')
             .head(10)
-        ).cols_label(rank="Rank", opposing_goaltender_name="Goaltender", pre_gsax="Pre-Shot GSAX", post_gsax="Post-Shot GSAX", diff="Difference")
+        ).cols_label(rank="Rank", opposing_goaltender_name="Goaltender", pre_gsax="Pre-Shot GSAX", post_gsax="Post-Shot GSAX")
         .fmt_number(cs.numeric().exclude('rank'))
-        .fmt_number('diff', force_sign=True)
-        .data_color('diff', domain=(-15, 15), palette=["red", "white", "green"])
+        .fmt_number(['pre_gsax', 'post_gsax'], force_sign=True)
+        .data_color(
+            columns=['pre_gsax', 'post_gsax'],
+            palette=['red', 'white', 'green'],
+            domain=[-40, 40]
+        )
     )
 
     top_10_goalies
@@ -253,12 +287,16 @@ def _(GT, cs, goalie_metrics):
     bottom_10_goalies = (
         GT(
             goalie_metrics
-            .select('rank', 'opposing_goaltender_name', 'pre_gsax', 'post_gsax', 'diff')
+            .select('rank', 'opposing_goaltender_name', 'pre_gsax', 'post_gsax')
             .tail(10)
-        ).cols_label(rank="Rank", opposing_goaltender_name="Goaltender", pre_gsax="Pre-Shot GSAX", post_gsax="Post-Shot GSAX", diff="Difference")
+        ).cols_label(rank="Rank", opposing_goaltender_name="Goaltender", pre_gsax="Pre-Shot GSAX", post_gsax="Post-Shot GSAX")
         .fmt_number(cs.numeric().exclude('rank'))
-        .fmt_number('diff', force_sign=True)
-        .data_color('diff', domain=(-15, 15), palette=["red", "white", "green"])
+        .fmt_number(['pre_gsax', 'post_gsax'], force_sign=True)
+        .data_color(
+            columns=['pre_gsax', 'post_gsax'],
+            palette=['red', 'white', 'green'],
+            domain=[-40, 40]
+        )
     )
 
     bottom_10_goalies
