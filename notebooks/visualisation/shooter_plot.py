@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.24.0"
+__generated_with = "0.24.2"
 app = marimo.App(width="medium")
 
 
@@ -127,7 +127,7 @@ def _(c, data, shooter_name):
 @app.cell
 def _(player_selector):
     shooter_name = player_selector.value
-    subtitle = "xG <added> and <lost> by shot execution (2025-26 Reg. Season)"
+    subtitle = "xG <added> and <lost> by unblocked shot execution (2025-26 Reg. Season)"
 
     low_colour = "red"
     high_colour = "green"
@@ -222,7 +222,7 @@ def _(
 @app.cell
 def _(fig, save_button, shooter_name):
     if save_button.value:
-        fig.savefig(f"plots/shooter_plots/{shooter_name}.png", dpi=300, bbox_inches='tight')
+        fig.savefig(f"output/viz/{shooter_name}.png", dpi=300, bbox_inches='tight')
     return
 
 
