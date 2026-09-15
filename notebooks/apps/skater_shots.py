@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.24.0"
+__generated_with = "0.24.2"
 app = marimo.App(width="medium")
 
 
@@ -185,15 +185,15 @@ def _(
         + geom_ice()
         + geom_point(mapping=mapping)
         + p9.scale_fill_gradient2(limits=(-0.6,0.6), low=low_colour, mid=mid_colour, high=high_colour, labels=label_number(style_positive="+"), oob=squish)
-        + p9.scale_size_continuous(breaks=[0.2,0.4,0.6], limits=(0,1), range=(1,9))
+        + p9.scale_size_continuous(breaks=[0.2,0.4,0.6], limits=(0,1), range=(1,6))
         + p9.scale_x_reverse()
         + p9.coord_fixed(ratio=1, ylim=(0, 6), xlim=(4.5, -4.5))
-        + p9.theme_void()
+        + p9.theme_538()
         + labs(x="", y="", fill="SGA", size="PreXG", title=shooter_name, subtitle="Reg. Season Unblocked Shots 2025-26")
         + p9.theme(
             axis_text=p9.element_blank(), axis_ticks=p9.element_blank(),
-            plot_title=p9.element_text(size=14, weight='bold'),
-            plot_subtitle=p9.element_text(size=10),
+            plot_title=p9.element_text(weight='bold'),
+            plot_subtitle=p9.element_text(size=8),
             legend_position='bottom', legend_box='vertical', legend_key_height=12
         ) + p9.guides(
             size=p9.guide_legend(override_aes={'fill': 'white'})
@@ -223,7 +223,7 @@ def _(
 ):
     rink_plot = (
         ggplot(shooter_data, aes(x="shot_x", y="shot_y", fill="sga", shape='result'))
-        + geom_rink()
+        + geom_rink(fill='white')
         + p9.geom_point(
             mapping=mapping, alpha=0.75, size=4, color="black"
             # arrow=p9.arrow(type="closed", angle=15, length=0.1)
@@ -231,9 +231,16 @@ def _(
         + p9.scale_fill_gradient2(limits=(-0.6,0.6), low=low_colour, mid=mid_colour, high=high_colour, labels=label_number(style_positive="+"))
         + p9.scale_shape_manual(values={'Goal': '*', 'Missed': 's', 'On Target': '^'})
         + p9.coord_fixed(xlim=(25, None))
-        + p9.theme_void()
-        + p9.theme(legend_position='bottom')
-        + p9.labs(shape="")
+        + p9.theme_538()
+        + p9.theme(
+            panel_grid=p9.element_blank(),
+            axis_title=p9.element_blank(),
+            axis_text=p9.element_blank(),
+            legend_title=p9.element_blank(),
+            legend_position='bottom',
+            plot_title=p9.element_blank(),
+            plot_subtitle=p9.element_blank(),
+        )
         + p9.guides(
             fill=False,
             shape=p9.guide_legend(override_aes={'fill': 'white'})
@@ -244,8 +251,10 @@ def _(
 
 @app.cell
 def _(css, goal_plot, interactive, rink_plot, to_html):
+    composed = goal_plot | rink_plot
+
     plot = (
-        interactive((goal_plot | rink_plot))
+        interactive(composed)
         + css(from_dict={
             ".tooltip": {"font-size": "1.1em", "padding": "8px 10px"},
             ".plot-element.hovered": {"fill": "#6642f5"},
